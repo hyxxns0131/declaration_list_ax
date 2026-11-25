@@ -6,6 +6,8 @@
 - 응답은 JSON → Pydantic 검증. 실패하면 1회만 다시 시도, 또 실패하면 None("확인 필요").
 - LLM_ENABLED=false면 부르지 않고 None.
 - 호출 기록(기능·프롬프트 버전·토큰)은 logs/ai_usage.jsonl. 서류 원문은 남기지 않는다.
+- 사용할 AI 회사·모델은 화면(탭 5. 연결 설정)에서 고를 수 있다. 고른 값은 data/ai_choice.json에만 둔다.
+  우선순위: 화면에서 고른 값 > .env(AI_PROVIDER, OPENAI_MODEL, CLAUDE_MODEL) > 아래 기본값.
 """
 
 import json
@@ -24,6 +26,75 @@ PROMPT_DIR = REPO_ROOT / "backend" / "prompts"
 USAGE_LOG = REPO_ROOT / "logs" / "ai_usage.jsonl"
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5"
 DEFAULT_OPENAI_MODEL = "gpt-5"
+PROVIDERS = ("openai", "claude")
+# 화면에서 고르는 모델 (id, 등급). 등급은 비용·성능 안내용. 실제 쓸 수 있는지는 [연결 검사]로 확인한다
+MODEL_OPTIONS: dict[str, list[tuple[str, str]]] = {
+    # 계정에서 쓸 수 있는 다른 GPT 버전은 [연결 검사] 뒤 목록에 자동으로 더해진다(connections._ai_block)
+    "openai": [
+        ("gpt-4o-mini", "저렴·빠름"),
+        ("gpt-4.1-nano", "저렴·빠름"),
+        ("gpt-4.1-mini", "저렴·빠름"),
+        ("gpt-5-nano", "저렴·빠름"),
+        ("gpt-5-mini", "보통"),
+        ("gpt-4o", "보통"),
+        ("gpt-4.1", "고성능"),
+        ("o4-mini", "고성능(추론)"),
+        ("gpt-5", "고성능·비쌈"),
+    ],
+    "claude": [
+        ("claude-haiku-5-5", "저렴·빠름"),
+        ("claude-sonnet-5-5", "보통"),
+        ("claude-opus-5-5", "고성능·비쌈"),
+    ],
+}
+_DEFAULT_MODEL = {"openai": DEFAULT_OPENAI_MODEL, "claude": DEFAULT_CLAUDE_MODEL}
+
+
+def _choice_path() -> Path:
+    return get_settings().data_path / "ai_choice.json"
+
+
+def load_choice() -> dict:
+    """화면에서 고른 값 {"provider": ..., "models": {provider: model}}. 없으면 빈 값."""
+    p = _choice_path()
+    if not p.exists():
+        return {"provider": "", "models": {}}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"provider": "", "models": {}}
+    return {"provider": data.get("provider") or "", "models": data.get("models") or {}}
+
+
+def save_choice(provider: str | None = None, model: str | None = None) -> dict:
+    """사용할 AI 회사 또는 그 회사의 모델을 저장한다. model은 provider와 함께 준다."""
+    data = load_choice()
+    if provider:
+        if provider not in PROVIDERS:
+            raise ValueError("provider")
+        if model is not None:
+            data["models"][provider] = model.strip()
+        else:
+            data["provider"] = provider
+    _choice_path().write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return data
+
+
+def current_provider() -> str:
+    p = load_choice()["provider"] or get_settings().ai_provider
+    return p if p in PROVIDERS else "claude"
+
+
+def current_model(provider: str | None = None) -> str:
+    provider = provider or current_provider()
+    s = get_settings()
+    env = s.openai_model if provider == "openai" else s.claude_model
+    return load_choice()["models"].get(provider) or env or _DEFAULT_MODEL[provider]
+
+
+def api_key(provider: str) -> str:
+    s = get_settings()
+    return s.openai_api_key if provider == "openai" else s.anthropic_api_key
 
 
 def load_prompt(prompt_name: str, version: int) -> str:
@@ -40,22 +111,22 @@ def _extract_json(text: str) -> object:
 
 
 def _ask(system: str, user: str) -> tuple[str, dict]:
-    s = get_settings()
-    if s.ai_provider == "openai":
+    provider = current_provider()
+    if provider == "openai":
         from openai import OpenAI
 
-        client = OpenAI(api_key=s.openai_api_key)
+        client = OpenAI(api_key=api_key("openai"))
         r = client.chat.completions.create(
-            model=s.openai_model or DEFAULT_OPENAI_MODEL,
+            model=current_model("openai"),
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         )
         usage = {"in": r.usage.prompt_tokens, "out": r.usage.completion_tokens} if r.usage else {}
         return r.choices[0].message.content or "", usage
     import anthropic
 
-    client = anthropic.Anthropic(api_key=s.anthropic_api_key)
+    client = anthropic.Anthropic(api_key=api_key("claude"))
     r = client.messages.create(
-        model=s.claude_model or DEFAULT_CLAUDE_MODEL,
+        model=current_model("claude"),
         max_tokens=8000,
         system=system,
         messages=[{"role": "user", "content": user}],
@@ -70,7 +141,8 @@ def _log(prompt_name: str, version: int, usage: dict, ok: bool) -> None:
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "prompt": prompt_name,
         "v": version,
-        "provider": get_settings().ai_provider,
+        "provider": current_provider(),
+        "model": current_model(),
         "ok": ok,
         **usage,
     }
@@ -80,9 +152,7 @@ def _log(prompt_name: str, version: int, usage: dict, ok: bool) -> None:
 
 def ready() -> bool:
     """AI를 실제로 부를 수 있는지: LLM_ENABLED이고 고른 회사의 키가 있다."""
-    s = get_settings()
-    key = s.openai_api_key if s.ai_provider == "openai" else s.anthropic_api_key
-    return s.llm_enabled and bool(key)
+    return get_settings().llm_enabled and bool(api_key(current_provider()))
 
 
 def call_structured(

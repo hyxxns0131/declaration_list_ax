@@ -1,11 +1,13 @@
 "use client";
-// 탭 3. 재질·실적 판단 · 신고 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
+// 탭 3. 재질·실적 판단 › 신고건 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
 import { JUDGE_COLUMNS, JudgeEvidence } from "@/components/judge/JudgeEvidence";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Card, PageHeader } from "@/components/ui/Card";
+import { ShipperSelect } from "@/components/ui/ShipperSelect";
 import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
 import { shippers as getShippers } from "@/lib/api/core";
@@ -16,9 +18,9 @@ import { T } from "@/lib/text/common";
 import { JUDGE } from "@/lib/text/judge";
 import type { Shipper } from "@/lib/types/core";
 import type { Declaration, HistoryRow } from "@/lib/types/history";
+import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
 
 const P = JUDGE.page;
-const SHIPPER_KEY = "dl_shipper";
 const MODEL_COLUMN = "한글 제품명(모델넘버)";
 
 const th = { textAlign: "left", padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.sm } as const;
@@ -62,7 +64,7 @@ export default function JudgePage() {
     setOpen(new Set());
     setMessage("");
     load();
-    if (shipperId) window.localStorage.setItem(SHIPPER_KEY, shipperId);
+    if (shipperId) rememberShipper(shipperId);
   }, [shipperId, load]);
 
   const byId = useMemo(() => new Map(rows.map((r) => [r.row_id, r])), [rows]);
@@ -107,24 +109,18 @@ export default function JudgePage() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: space.md, flexWrap: "wrap", marginBottom: space.sm }}>
-        <h2 style={{ margin: 0, fontSize: font.xl }}>{P.title}</h2>
-        <label style={{ fontSize: font.md }}>
-          {T.shipper}{" "}
-          <select value={shipperId} onChange={(e) => setShipperId(e.target.value)}>
-            {shippers.map((s) => (
-              <option key={s.shipper_id} value={s.shipper_id}>
-                {s.display_name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button onClick={recompute} disabled={!shipperId || busy} style={{ marginLeft: "auto" }}>
-          ⟳ {busy ? P.recomputing : P.recompute}
-        </Button>
-      </div>
-      <p style={{ color: colors.muted, fontSize: font.sm, marginTop: 0 }}>{P.sub}</p>
-
+      <PageHeader
+        title={P.title}
+        sub={P.sub}
+        actions={
+          <>
+            <ShipperSelect shippers={shippers} value={shipperId} onChange={setShipperId} />
+            <Button onClick={recompute} disabled={!shipperId || busy}>
+              ⟳ {busy ? P.recomputing : P.recompute}
+            </Button>
+          </>
+        }
+      />
       {message && <Notice>{message}</Notice>}
       {error !== null && <ErrorLine error={error} onRetry={load} />}
       {!shipperId && <EmptyState text={T.pickShipper} />}
@@ -132,6 +128,7 @@ export default function JudgePage() {
       {decls && decls.length === 0 && <EmptyState text={P.empty} />}
 
       {decls && decls.length > 0 && (
+        <Card>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -225,6 +222,7 @@ export default function JudgePage() {
             })}
           </tbody>
         </table>
+        </Card>
       )}
 
       {evidence && (

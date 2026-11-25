@@ -2,7 +2,7 @@
 // 로그인 화면 본문 (DESIGN 2-1). 틀리면 어느 쪽이 틀렸는지 말하지 않는다. 담당: KHS
 import { useState, type FormEvent } from "react";
 
-import { colors, space } from "@/components/ui/tokens";
+import { colors, panelRadius, space } from "@/components/ui/tokens";
 import { ApiError } from "@/lib/api/client";
 import { login } from "@/lib/api/core";
 import { T } from "@/lib/text/common";
@@ -39,11 +39,12 @@ export function LoginForm() {
         width: 360,
         margin: "120px auto",
         padding: space.xl,
-        border: `1px solid ${colors.border}`,
-        borderRadius: 8,
+        background: colors.panelBg,
+        borderRadius: panelRadius,
+        boxShadow: colors.panelShadow,
       }}
     >
-      <h1 style={{ fontSize: 20, textAlign: "center", marginBottom: space.lg }}>{T.appName}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, color: colors.brand, textAlign: "center", marginBottom: space.lg }}>{T.appName}</h1>
       <label>
         {T.login.username}
         <input
@@ -69,7 +70,17 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={busy}
-        style={{ width: "100%", marginTop: space.lg, padding: space.sm }}
+        style={{
+          width: "100%",
+          marginTop: space.lg,
+          padding: space.sm + 2,
+          background: colors.brand,
+          color: "#fff",
+          border: 0,
+          borderRadius: 999,
+          fontWeight: 700,
+          cursor: busy ? "not-allowed" : "pointer",
+        }}
       >
         {busy ? T.login.submitting : T.login.submit}
       </button>
