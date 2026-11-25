@@ -1,0 +1,21 @@
+{
+  "kind": "수입신고서",
+  "model": "PAN-24",
+  "data": {
+    "receipt_no": "202400000602",
+    "receipt_date": "2024-05-02",
+    "accepted_date": "2024-05-20",
+    "inspection_type": "정밀",
+    "product_en": "FRYING PAN(PAN-24)",
+    "product_ko": "프라이팬(PAN-24)",
+    "materials": [
+      {
+        "code": "D5000002B20000",
+        "name": "금속제(불소수지도장)"
+      }
+    ],
+    "maker_code": "CN900000101",
+    "maker_name": "VIRTUAL KITCHENWARE CO., LTD.",
+    "maker_address": "NO. 9 DEMO STREET, MOCK TOWN, VIRTUAL PROVINCE, CN"
+  }
+}

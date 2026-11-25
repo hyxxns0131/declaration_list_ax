@@ -1,0 +1,21 @@
+{
+  "kind": "수입신고서",
+  "model": "POT-14",
+  "data": {
+    "receipt_no": "202400000501",
+    "receipt_date": "2024-03-02",
+    "accepted_date": "2024-03-15",
+    "inspection_type": "정밀",
+    "product_en": "STAINLESS POT(POT-14)",
+    "product_ko": "스테인레스 냄비(POT-14)",
+    "materials": [
+      {
+        "code": "D5000003000000",
+        "name": "스테인레스"
+      }
+    ],
+    "maker_code": "CN900000101",
+    "maker_name": "VIRTUAL KITCHENWARE CO., LTD.",
+    "maker_address": "NO. 9 DEMO STREET, MOCK TOWN, VIRTUAL PROVINCE, CN"
+  }
+}

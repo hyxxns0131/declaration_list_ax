@@ -1,0 +1,18 @@
+{
+  "kind": "시험성적서",
+  "data": {
+    "receipt_no": "202400000501",
+    "approval_date": "2024-03-15",
+    "samples": [
+      {
+        "material": "스테인레스",
+        "part": "몸체",
+        "color": "SILVER",
+        "remark": ""
+      }
+    ],
+    "models": [
+      "POT-14"
+    ]
+  }
+}

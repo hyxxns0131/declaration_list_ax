@@ -1,0 +1,235 @@
+"use client";
+// 탭 3. 재질·실적 판단 · 신고 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+
+import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
+import { JUDGE_COLUMNS, JudgeEvidence } from "@/components/judge/JudgeEvidence";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
+import { colors, font, space } from "@/components/ui/tokens";
+import { shippers as getShippers } from "@/lib/api/core";
+import { getHistory } from "@/lib/api/history";
+import { computeDeclarations, getDeclarations } from "@/lib/api/judge";
+import { fmtDate, shown } from "@/lib/format";
+import { T } from "@/lib/text/common";
+import { JUDGE } from "@/lib/text/judge";
+import type { Shipper } from "@/lib/types/core";
+import type { Declaration, HistoryRow } from "@/lib/types/history";
+
+const P = JUDGE.page;
+const SHIPPER_KEY = "dl_shipper";
+const MODEL_COLUMN = "한글 제품명(모델넘버)";
+
+const th = { textAlign: "left", padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.sm } as const;
+const td = { padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.md, verticalAlign: "top" } as const;
+
+export default function JudgePage() {
+  const [shippers, setShippers] = useState<Shipper[]>([]);
+  const [shipperId, setShipperId] = useState("");
+  const [decls, setDecls] = useState<Declaration[] | null>(null);
+  const [rows, setRows] = useState<HistoryRow[]>([]);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [evidence, setEvidence] = useState<{ row: HistoryRow; column: string } | null>(null);
+
+  useEffect(() => {
+    getShippers()
+      .then((list) => {
+        setShippers(list);
+        const saved = window.localStorage.getItem(SHIPPER_KEY);
+        setShipperId(list.find((s) => s.shipper_id === saved)?.shipper_id ?? list[0]?.shipper_id ?? "");
+      })
+      .catch(setError);
+  }, []);
+
+  const load = useCallback(async () => {
+    if (!shipperId) return;
+    setError(null);
+    try {
+      const [d, r] = await Promise.all([getDeclarations(shipperId), getHistory(shipperId)]);
+      setDecls(d);
+      setRows(r);
+    } catch (e) {
+      setError(e);
+    }
+  }, [shipperId]);
+
+  useEffect(() => {
+    setDecls(null);
+    setOpen(new Set());
+    setMessage("");
+    load();
+    if (shipperId) window.localStorage.setItem(SHIPPER_KEY, shipperId);
+  }, [shipperId, load]);
+
+  const byId = useMemo(() => new Map(rows.map((r) => [r.row_id, r])), [rows]);
+
+  const recompute = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const d = await computeDeclarations(shipperId);
+      setMessage(P.recomputed(d.length));
+      await load();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = (id: string) => {
+    const next = new Set(open);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setOpen(next);
+  };
+
+  const cell = (row: HistoryRow, column: string) => {
+    const value = String(shown(row.cells[column]) ?? "");
+    return (
+      <span style={{ display: "inline-flex", gap: space.xs, alignItems: "baseline" }}>
+        <span>{value || <span style={{ color: colors.needCheck }}>{T.noData}</span>}</span>
+        <button
+          type="button"
+          title={JUDGE.evidence.open}
+          onClick={() => setEvidence({ row, column })}
+          style={{ border: "none", background: "none", cursor: "pointer", color: colors.primary, padding: 0 }}
+        >
+          ⓘ
+        </button>
+      </span>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: space.md, flexWrap: "wrap", marginBottom: space.sm }}>
+        <h2 style={{ margin: 0, fontSize: font.xl }}>{P.title}</h2>
+        <label style={{ fontSize: font.md }}>
+          {T.shipper}{" "}
+          <select value={shipperId} onChange={(e) => setShipperId(e.target.value)}>
+            {shippers.map((s) => (
+              <option key={s.shipper_id} value={s.shipper_id}>
+                {s.display_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button onClick={recompute} disabled={!shipperId || busy} style={{ marginLeft: "auto" }}>
+          ⟳ {busy ? P.recomputing : P.recompute}
+        </Button>
+      </div>
+      <p style={{ color: colors.muted, fontSize: font.sm, marginTop: 0 }}>{P.sub}</p>
+
+      {message && <Notice>{message}</Notice>}
+      {error !== null && <ErrorLine error={error} onRetry={load} />}
+      {!shipperId && <EmptyState text={T.pickShipper} />}
+      {shipperId && decls === null && error === null && <Skeleton lines={4} />}
+      {decls && decls.length === 0 && <EmptyState text={P.empty} />}
+
+      {decls && decls.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={th} />
+              <th style={th}>{P.cols.vessel}</th>
+              <th style={th}>{P.cols.factory}</th>
+              <th style={th}>{P.cols.material}</th>
+              <th style={th}>{P.cols.records}</th>
+              <th style={th}>{P.cols.rows}</th>
+              <th style={th}>{P.cols.warnings}</th>
+              <th style={th} />
+            </tr>
+          </thead>
+          <tbody>
+            {decls.map((d, i) => {
+              const isOpen = open.has(d.declaration_id);
+              return (
+                <Fragment key={d.declaration_id}>
+                  <tr style={{ background: colors.bgSubtle }}>
+                    <td style={td}>
+                      <Button small variant="ghost" onClick={() => toggle(d.declaration_id)}>
+                        {isOpen ? "▾" : "▸"} {P.group(i + 1)}
+                      </Button>
+                    </td>
+                    <td style={td}>
+                      {d.key.vessel_key.replace(/^모선명:/, "") || "-"}
+                      {d.arrival_date && (
+                        <div style={{ color: colors.muted, fontSize: font.sm }}>반입 {fmtDate(d.arrival_date)}</div>
+                      )}
+                    </td>
+                    <td style={td}>{d.key.factory_code || "-"}</td>
+                    <td style={td}>
+                      {d.key.material || "-"} {d.key.color && <Badge>{d.key.color}</Badge>}
+                    </td>
+                    <td style={td}>{d.record_nos.join(", ") || <span style={{ color: colors.needCheck }}>{T.noData}</span>}</td>
+                    <td style={td}>{d.row_ids.length}</td>
+                    <td style={td}>
+                      {d.warnings.map((w) => (
+                        <Badge key={w} tone="needCheck" title={w}>
+                          ? {w}
+                        </Badge>
+                      ))}
+                    </td>
+                    <td style={td}>
+                      <ItemSheetButton shipperId={shipperId} selectedRowIds={d.row_ids} onCreated={() => setMessage("")} />
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={8} style={{ padding: `${space.xs}px ${space.lg}px ${space.md}px` }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <thead>
+                            <tr>
+                              <th style={th}>{P.rowCols.model}</th>
+                              <th style={th}>{P.rowCols.material}</th>
+                              <th style={th}>{P.rowCols.record}</th>
+                              <th style={th}>{P.rowCols.maker}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {d.row_ids.map((id) => {
+                              const row = byId.get(id);
+                              if (!row) {
+                                return (
+                                  <tr key={id}>
+                                    <td colSpan={4} style={{ ...td, color: colors.muted }}>
+                                      {id} · {P.rowMissing}
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              return (
+                                <tr key={id} style={{ color: row.status === "승인" ? colors.approved : colors.text }}>
+                                  <td style={td}>
+                                    {String(shown(row.cells[MODEL_COLUMN]) ?? row.model)}
+                                    {row.is_part && <Badge>{P.part}</Badge>}
+                                  </td>
+                                  <td style={td}>{cell(row, JUDGE_COLUMNS.material)}</td>
+                                  <td style={td}>{cell(row, JUDGE_COLUMNS.record)}</td>
+                                  <td style={td}>{cell(row, JUDGE_COLUMNS.maker)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {evidence && (
+        <JudgeEvidence row={evidence.row} column={evidence.column} onClose={() => setEvidence(null)} onChanged={load} />
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,18 @@
+{
+  "kind": "시험성적서",
+  "data": {
+    "receipt_no": "202400000602",
+    "approval_date": "2024-05-20",
+    "samples": [
+      {
+        "material": "금속제(불소수지도장)",
+        "part": "몸체",
+        "color": "BLACK",
+        "remark": ""
+      }
+    ],
+    "models": [
+      "PAN-24"
+    ]
+  }
+}

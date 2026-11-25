@@ -1,0 +1,82 @@
+# declaration_list .gitignore (작성일 2026-11-24, 기준: SAMC 기존 도구 .gitignore + Next.js/FastAPI)
+# 이 저장소는 공개(public) 저장소다. 화주 자료·키는 절대 올리지 않는다.
+
+# ── 비밀 정보 (절대 커밋 금지) ──
+.env
+.env.*
+!.env.example
+frontend/.env.local
+frontend/.env*.local
+!frontend/.env.local.example
+credentials.json
+token.json
+*service-account*.json
+*.key
+*.pem
+
+# ── 로컬 데이터·작업 파일 (실무 데이터는 드라이브, 작업 중 데이터는 로컬) ──
+data/
+workspace/
+input_materials/
+input_zips/
+*.db
+*.sqlite
+*.sqlite3
+logs/
+
+# ── 업무 자료 (화주 서류·양식 원본). 가상 자료는 samples/ 에만 둔다 ──
+*.xlsx
+*.xls
+*.xlsm
+*.doc
+*.docx
+*.pdf
+*.hwp
+*.hwpx
+*.zip
+*.jpg
+*.jpeg
+*.png
+!samples/**
+!backend/templates/*.xlsx
+!frontend/public/**
+!docs/**/*.png
+SAMC_DATA/
+SAMC_CUSTOMS_share/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ── Node / Next.js ──
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ── exe 빌드 결과 (마지막 단계) ──
+build/
+dist/
+*.spec
+src-tauri/target/
+
+# ── Supabase CLI ──
+supabase/.temp/
+supabase/.branches/
+
+# ── OS·편집기 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

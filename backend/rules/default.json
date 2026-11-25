@@ -1,0 +1,23 @@
+{
+  "shipper_id": "default",
+  "display_name": "공통 기본값",
+  "required_docs": ["CI", "PL", "BL", "CO"],
+  "inbox": true,
+  "merge_spare_parts": false,
+  "product_name_with_model": false,
+  "spare_same_as_model": false,
+  "split_record_by_part": false,
+  "same_record_same_spec": true,
+  "color_check": true,
+  "material_source_order": ["HISTORY", "IMPORT_DECL", "TEST_REPORT", "PHOTO"],
+  "group_by_maker": true,
+  "group_by_material": true,
+  "group_by_color": false,
+  "color_basis": null,
+  "one_record_per_declaration": true,
+  "max_rows_per_declaration": null,
+  "sort_by": [],
+  "prefer_past_factory_code": false,
+  "mask_names": [],
+  "exceptions": []
+}

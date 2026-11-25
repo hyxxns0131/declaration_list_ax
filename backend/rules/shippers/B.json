@@ -1,0 +1,12 @@
+{
+  "shipper_id": "B",
+  "display_name": "B사(주방용품)",
+  "required_docs": ["CI", "PL", "BL", "CO", "INTAKE_LIST", "PHOTO"],
+  "inbox": false,
+  "split_record_by_part": true,
+  "color_check": true,
+  "group_by_color": true,
+  "color_basis": "내색",
+  "one_record_per_declaration": false,
+  "max_rows_per_declaration": 5
+}

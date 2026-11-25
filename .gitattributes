@@ -1,0 +1,20 @@
+# 줄바꿈을 LF로 고정한다 (Windows CRLF 때문에 파일 전체가 바뀐 것처럼 보이는 충돌 방지)
+* text=auto eol=lf
+
+# Windows 전용 스크립트만 CRLF
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# 바이너리: 병합하지 않는다 (만든 사람만 수정)
+*.xlsx binary
+*.xls  binary
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.hwpx binary
+*.db   binary
+
+# lock 파일은 PM만 커밋, 충돌 시 PM이 다시 생성
+package-lock.json -diff linguist-generated

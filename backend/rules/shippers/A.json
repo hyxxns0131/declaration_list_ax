@@ -1,0 +1,18 @@
+{
+  "shipper_id": "A",
+  "display_name": "A사(가전)",
+  "required_docs": ["CI", "PL", "BL", "CO"],
+  "merge_spare_parts": true,
+  "product_name_with_model": true,
+  "spare_same_as_model": true,
+  "color_check": false,
+  "prefer_past_factory_code": true,
+  "exceptions": [
+    {
+      "key": "prefer_past_factory_code",
+      "reason": "화주 요청에 따른 예외",
+      "basis": "확인 필요 8",
+      "since": "기존 도구 2026-11-10"
+    }
+  ]
+}

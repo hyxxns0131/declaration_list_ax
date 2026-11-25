@@ -1,0 +1,25 @@
+{
+  "kind": "수입신고서",
+  "model": "RC-300",
+  "data": {
+    "receipt_no": "202100000303",
+    "receipt_date": "2021-12-01",
+    "accepted_date": "2021-12-20",
+    "inspection_type": "정밀",
+    "product_en": "ELECTRIC PRESSURE RICE COOKER(RC-300)",
+    "product_ko": "전기압력밥솥(RC-300)",
+    "materials": [
+      {
+        "code": "D5000003000000",
+        "name": "스테인레스"
+      },
+      {
+        "code": "D1000003000000",
+        "name": "폴리프로필렌"
+      }
+    ],
+    "maker_code": "CN900000001",
+    "maker_name": "VIRTUAL APPLIANCE FACTORY CO., LTD.",
+    "maker_address": "NO. 1 TEST ROAD, SAMPLE DISTRICT, VIRTUAL CITY, CN"
+  }
+}

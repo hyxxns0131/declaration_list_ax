@@ -1,0 +1,10 @@
+{
+  "bl_no": "BLTEST101",
+  "cargo_no": "26VMON3030300010000",
+  "vessel": "VIRTUAL MOON",
+  "arrival_place_code": "02012345",
+  "arrival_date": "2026-11-19",
+  "entry_date": "2026-11-17",
+  "port_of_arrival": "KRINC",
+  "port_of_loading": "CNSHA"
+}

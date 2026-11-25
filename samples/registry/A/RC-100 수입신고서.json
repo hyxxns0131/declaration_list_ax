@@ -1,0 +1,25 @@
+{
+  "kind": "수입신고서",
+  "model": "RC-100",
+  "data": {
+    "receipt_no": "202300000101",
+    "receipt_date": "2023-04-10",
+    "accepted_date": "2023-04-25",
+    "inspection_type": "정밀",
+    "product_en": "ELECTRIC RICE COOKER(RC-100)",
+    "product_ko": "전기밥솥(RC-100)",
+    "materials": [
+      {
+        "code": "D5000002B20000",
+        "name": "금속제(불소수지도장)"
+      },
+      {
+        "code": "D1000003000000",
+        "name": "폴리프로필렌"
+      }
+    ],
+    "maker_code": "CN900000001",
+    "maker_name": "VIRTUAL APPLIANCE FACTORY CO., LTD.",
+    "maker_address": "NO. 1 TEST ROAD, SAMPLE DISTRICT, VIRTUAL CITY, CN"
+  }
+}

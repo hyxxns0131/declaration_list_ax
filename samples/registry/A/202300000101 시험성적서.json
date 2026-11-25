@@ -1,0 +1,24 @@
+{
+  "kind": "시험성적서",
+  "data": {
+    "receipt_no": "202300000101",
+    "approval_date": "2023-04-25",
+    "samples": [
+      {
+        "material": "금속제(불소수지도장)",
+        "part": "내솥",
+        "color": "검정",
+        "remark": ""
+      },
+      {
+        "material": "폴리프로필렌",
+        "part": "뚜껑",
+        "color": "흰색",
+        "remark": ""
+      }
+    ],
+    "models": [
+      "RC-100"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+# 백엔드 의존성 (KHS만 수정, RULES 9장). 버전은 최소 버전으로 고정.
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+pydantic-settings>=2.6
+httpx>=0.27
+python-multipart>=0.0.12
+bcrypt>=4.2
+openpyxl>=3.1
+xlrd>=2.0
+pdfplumber>=0.11
+python-docx>=1.1
+anthropic>=0.40
+openai>=1.55
+# 개발용
+pytest>=8.3
+ruff>=0.8
