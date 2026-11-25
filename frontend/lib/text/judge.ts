@@ -2,17 +2,29 @@
 export const JUDGE = {
   // 탭 3 화면 (DESIGN 5장 맨 앞)
   page: {
-    title: "3. 재질·실적 판단",
-    sub: "신고건 묶음별로 재질·실적·제조사 판단 근거를 확인하고 품목사항을 만듭니다.",
+    title: "신고건 묶음",
+    sub: "동일 모선·제조업소·재질로 묶은 신고건입니다. 묶음을 펼쳐 행별 재질·실적·제조사를 봅니다.",
     recompute: "다시 계산",
     recomputing: "계산 중…",
     recomputed: (n: number) => `신고건 ${n}묶음으로 다시 계산했습니다 (확정 값 유지)`,
-    empty: "신고건이 없습니다. 탭 1에서 서류를 올리면 묶음이 만들어집니다.",
+    empty: "신고건이 없습니다. 탭 4(검역 리스트)에서 서류를 올리면 묶음이 만들어집니다.",
     group: (i: number) => `신고건 ${i}`,
     cols: { vessel: "모선", factory: "제조업소", material: "재질", records: "실적", rows: "행 수", warnings: "경고" },
     rowCols: { model: "제품(모델)", material: "재질", record: "실적접수번호", maker: "제조사" },
     rowMissing: "행 정보를 불러오지 못했습니다",
     part: "부분품",
+  },
+  // 사이드바 › 판단 근거 (DESIGN 5-2)
+  evidencePage: {
+    title: "판단 근거",
+    sub: "행마다 재질·실적·제조사 값과 근거를 봅니다. ⓘ를 누르면 후보와 근거(서류·이력·규칙)가 열립니다.",
+    onlyCheck: "확인 필요만 보기",
+    empty: "보여 줄 행이 없습니다",
+  },
+  // 사이드바 › 품목사항 엑셀 (DESIGN 5-1)
+  itemSheetPage: {
+    title: "품목사항 엑셀",
+    sub: "신고건 하나를 골라 유니패스 지정 양식의 품목사항 엑셀을 만들고 내려받습니다. AI를 쓰지 않습니다.",
   },
   itemSheet: {
     title: "품목사항 만들기",

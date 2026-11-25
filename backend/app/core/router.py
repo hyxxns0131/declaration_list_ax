@@ -1,12 +1,15 @@
-"""GET /core/health(로그인 없이), GET /core/shippers, GET /core/integrations. 담당: KHS"""
+"""GET /core/health(로그인 없이), GET /core/shippers, GET /core/integrations,
+연결 상태(GET /core/connections, POST /core/connections/check, PUT /core/ai-choice). 담당: KHS"""
 
 import json
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
-from app.core import llm
+from app.core import connections, llm
 from app.core.auth.deps import require_login
 from app.core.config import REPO_ROOT, get_settings
+from app.core.errors import AppError
 from app.core.storage import drive, gmail
 
 router = APIRouter(prefix="/core", tags=["core"])
@@ -19,7 +22,7 @@ def health() -> dict:
     return {
         "ok": True,
         "llm_enabled": llm.ready(),
-        "ai_provider": s.ai_provider,
+        "ai_provider": llm.current_provider(),
         "unipass_mode": s.unipass_mode,
         "supabase": bool(s.supabase_url and s.supabase_anon_key),
     }
@@ -58,3 +61,40 @@ def shippers() -> list[dict]:
             }
         )
     return out
+
+
+class CheckIn(BaseModel):
+    service: str = "all"  # all 또는 connections.KEYS 중 하나
+
+
+class AiChoiceIn(BaseModel):
+    provider: str  # openai | claude
+    model: str | None = None  # 주면 그 회사의 모델만 바꾼다. 없으면 '사용할 AI'를 바꾼다
+
+
+@router.get("/connections", dependencies=[Depends(require_login)])
+def connection_status() -> dict:
+    """연결 표: 키가 있는지(네트워크 없음) + 마지막 검사 결과. 키 값은 돌려주지 않는다."""
+    return connections.status()
+
+
+@router.post("/connections/check", dependencies=[Depends(require_login)])
+def connection_check(body: CheckIn) -> dict:
+    """[연결 검사]: 실제로 접속해 본다. AI는 모델 목록만 받아 토큰을 쓰지 않는다."""
+    keys = connections.KEYS if body.service == "all" else [body.service]
+    if any(k not in connections.KEYS for k in keys):
+        raise AppError("unknown_service", "알 수 없는 연결입니다.", 404)
+    for k in keys:
+        connections.check(k)
+    return connections.status()
+
+
+@router.put("/ai-choice", dependencies=[Depends(require_login)])
+def ai_choice(body: AiChoiceIn) -> dict:
+    """사용할 AI 회사·모델 저장(data/ai_choice.json). .env는 바꾸지 않는다."""
+    if body.provider not in llm.PROVIDERS:
+        raise AppError("unknown_provider", "openai 또는 claude만 고를 수 있습니다.", 422)
+    if body.model is not None and not body.model.strip():
+        raise AppError("empty_model", "모델 이름이 비었습니다.", 422)
+    llm.save_choice(body.provider, body.model)
+    return connections.status()

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     mfds_import_rcpt_entp_api_key: str = ""
     mfds_material_code_api_key: str = ""
 
+    # 5-1. 기타 공공 API (연결 상태 화면에서 검사만. 탭 5. 연결 설정)
+    law_api_oc: str = ""  # 법제처 OPEN API (등록한 공인 IP에서만 동작)
+    foodsafety_api_key: str = ""  # 식품안전나라
+
     # 6. Supabase (읽기만. 쓰기는 PM 스크립트)
     supabase_url: str = ""
     supabase_anon_key: str = ""

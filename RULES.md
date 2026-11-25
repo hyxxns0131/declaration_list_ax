@@ -82,7 +82,7 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 |---|---|
 | `reader` | A0 서류 판독 (`backend/app/a0_reader/`, `components/reader/`) |
 | `history` | A1 검역이력 행·서류 대조·검수 패널 (`a1_history/`, `components/review/`) |
-| `home` | 메인 화면 (`app/page.tsx`, `components/home/`) |
+| `home` | 탭 2 검역 리스트 (`app/history/`, `components/home/`) · 홈 대시보드 문구는 `dashboard` (`app/page.tsx`) |
 | `registry` | A2 수입신고서·성적서 등록, 실적, 만료 알림 |
 | `judge` | A3 재질·실적·제조사·신고건·품목사항 |
 | `settings` | A4 화주 설정 |
@@ -167,8 +167,8 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 | `backend/app/law_data/`, `a0_reader/`, `a1_history/` | KHS | 소유자 확인 후 PM 수락 |
 | `frontend/components/reader/`, `components/review/`, `lib/api/core·reader·history.ts`, `lib/types/` | KHS | 소유자 확인 후 PM 수락 |
 | `backend/app/a2_registry/` | YHS | 소유자 확인 후 PM 수락 |
-| `frontend/app/page.tsx`(탭 1), `components/home/` | KHS | 소유자 확인 후 PM 수락 |
-| `frontend/app/registry/`(탭 2), `components/registry/`, `lib/api/registry.ts` | YHS | 소유자 확인 후 PM 수락 |
+| `frontend/app/page.tsx`(홈), `frontend/app/history/`(탭 2), `components/home/`, `lib/nav.ts`, `lib/hooks/` | KHS | 소유자 확인 후 PM 수락 |
+| `frontend/app/registry/`(탭 1), `components/registry/`, `lib/api/registry.ts` | YHS | 소유자 확인 후 PM 수락 |
 | `backend/app/a3_judge/`, `backend/templates/item_sheet.xlsx` | LSY | 소유자 확인 후 PM 수락 |
 | `frontend/app/judge/`(탭 3), `components/judge/`, `lib/api/judge.ts` | LSY | 소유자 확인 후 PM 수락 |
 | `backend/app/a4_settings/`, `backend/rules/` | JUJ | 소유자 확인 후 PM 수락 |
@@ -218,7 +218,8 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 
 ## 6. 탭과 부품의 경계
 
-- 탭 4개 = 제안서 가이드라인 1~4번, 탭 하나 = 담당 1명(탭 1 KHS `/`, 탭 2 YHS `/registry`, 탭 3 LSY `/judge`, 탭 4 JUJ `/settings`).
+- 홈 + 탭 4개 = 제안서 가이드라인 1~4번, 탭 하나 = 담당 1명(홈 KHS `/`, 탭 1 YHS `/registry`, 탭 2 KHS `/history`, 탭 3 LSY `/judge`, 탭 4 JUJ `/settings`). 탭 순서 변경은 HS 요청 11/25.
+- 탭 안의 세부 화면은 왼쪽 사이드바 메뉴로 나눈다(탭마다 2~3개, 경로는 `<탭>/<세부>/page.tsx`). 사이드바 목록은 `lib/nav.ts` 한 곳(PM 수정)이고, 세부 화면 page.tsx는 그 탭 담당이 만든다.
 - 탭 페이지(`app/**/page.tsx`)는 **배치와 상태 연결만** 한다. 데이터 가공·판단을 하지 않는다.
 - 탭 페이지 파일은 그 탭 담당만 고친다. 남의 탭에 기능을 넣을 때는 부품을 만들어 props로 넘긴다.
 - 부품은 props와 API로만 주고받는다.

@@ -1,12 +1,45 @@
+/* 공통 스타일 (DESIGN 8장 테마: 파란 바탕 + 흰 판, 파랑 하나만 강조색). 색 값은 components/ui/tokens.ts와 같게 둔다. 담당: KHS */
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, "Malgun Gothic", sans-serif; color: #1f2328; font-size: 14px; }
+body {
+  margin: 0;
+  font-family: "Pretendard", "Pretendard Variable", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  color: #1f2937;
+  font-size: 14px;
+  background: #2563c9;
+  -webkit-font-smoothing: antialiased;
+}
 button, input, select, textarea { font: inherit; }
-input, select, textarea { border: 1px solid #d0d7de; border-radius: 4px; }
+input, select, textarea {
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid #2563c9; outline-offset: 1px; }
+a { color: #2563c9; }
 
-table.grid { border-collapse: collapse; width: 100%; font-size: 13px; }
-table.grid th, table.grid td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: left; vertical-align: top; }
-table.grid th { background: #f6f8fa; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
-table.grid tbody tr:hover td { filter: brightness(0.98); }
+/* 표 공통: 세로줄 없음, 아주 연한 가로줄, 작은 대문자·자간 회색 머리글, 마우스를 올린 줄은 연한 파랑 */
+main table th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a94a6;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e9edf3;
+  white-space: nowrap;
+}
+main table td { padding: 14px 12px; border-bottom: 1px solid #eef1f6; }
+main table tbody tr:hover > td { background-color: #e8f0fc; }
+main table tbody tr[aria-selected="true"] > td { background-color: #e8f0fc; }
+
+/* 검역이력처럼 칸이 많은 표(.grid): 같은 모양, 줄 높이만 조금 낮게. 칸 색(자료 추가 필요 등)은 그대로 */
+table.grid { border-collapse: collapse; width: 100%; font-size: 13px; background: #fff; }
+table.grid th, table.grid td { border: 0; border-bottom: 1px solid #eef1f6; padding: 10px 10px; text-align: left; vertical-align: top; }
+table.grid th { background: #fff; position: sticky; top: 0; z-index: 1; }
+/* 칸이 많은 표는 칸을 짓눌러 줄바꿈하지 않고 옆으로 스크롤한다(1366px 화면 대비) */
+table.sheet { width: max-content; min-width: 100%; }
 table.sheet td { max-width: 280px; }
-button.mini { border: 1px solid #d0d7de; background: #fff; border-radius: 4px; padding: 0 5px; margin-right: 2px; cursor: pointer; font-size: 12px; }
+button.mini { border: 1px solid #dfe5ee; background: #fff; border-radius: 6px; padding: 0 6px; margin-right: 2px; cursor: pointer; font-size: 12px; color: #6b7280; }
 .strike { text-decoration: line-through; color: #9ca3af; }

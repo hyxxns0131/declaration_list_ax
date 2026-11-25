@@ -1,6 +1,11 @@
 // 탭 2. 서류 등록·만료 알림 문구 (DESIGN 6장). 담당: YHS
 export const REGISTRY = {
-  title: "2. 서류 등록·만료 알림",
+  title: "실적 현황",
+  sub: "수입신고서·검사성적서로 등록한 정밀검사 실적입니다. 만료된 실적은 취소선으로 남깁니다.",
+  stats: { all: "전체 실적", valid: "유효", soon: "만료 임박", expired: "만료" },
+  factoriesSub: "해외제조업소 코드별 등록(갱신)일과 만료일(등록일 + 2년)입니다.",
+  alertsTitle: "만료 알림",
+  alertsSub: "실적·해외제조업소 코드가 3개월·1개월 안에 만료되면 알림 메일을 보냅니다. 같은 대상·같은 단계는 한 번만 보냅니다.",
   filters: { maker: "제조사", model: "모델", status: "상태", all: "전체" },
   upload: "수입신고서·성적서 올리기",
   cols: {

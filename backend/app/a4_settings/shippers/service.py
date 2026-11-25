@@ -4,21 +4,24 @@
 - 저장 전 검증: 모르는 키는 거절. group_by_maker는 끌 수 없다. 화주 id는 영문·숫자만(가명).
 - 공통(기본)과 다르게 켠 '예외' 스위치는 exceptions[]에 키·이유·근거·시작 시점을 남긴다(RULES 11-12).
 - 새 화주 = default.json 복사 + 이름. 코드 수정 없이 추가된다.
+- 화주 삭제(HS 요청 11/25): 기본 화주 A·B는 지울 수 없다. 지우지 않고 DATA_DIR/deleted_shippers/<id>-<시각>.json으로 옮겨 둔다.
 """
 
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from app.a4_settings.engine.service import RULES_DIR, get_rules
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.schema.shipper import ShipperSettings
 from app.core.storage import local_db
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
+DEFAULT_SHIPPERS = frozenset({"A", "B"})  # 기본 화주: 삭제 불가 (HS 요청 11/25)
 
 
 def catalog(rules_dir: Path = RULES_DIR) -> dict:
@@ -155,3 +158,19 @@ def create_shipper(
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     local_db.audit("shipper_create", shipper_id, date.today().isoformat())
     return get_shipper(shipper_id, rules_dir)
+
+
+def delete_shipper(shipper_id: str, rules_dir: Path = RULES_DIR) -> dict:
+    """화주 설정 파일을 지우지 않고 DATA_DIR/deleted_shippers/로 옮긴다(되살릴 수 있게). 기본 화주는 거절."""
+    if shipper_id.upper() in DEFAULT_SHIPPERS:
+        raise AppError("default_shipper", "기본 화주(A사·B사)는 삭제할 수 없습니다.", 409)
+    path = _path(shipper_id, rules_dir)
+    if not path.exists():
+        raise AppError("not_found", f"화주 {shipper_id} 설정이 없습니다.", 404)
+    backup_dir = get_settings().data_path / "deleted_shippers"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = backup_dir / f"{shipper_id}-{stamp}.json"
+    path.replace(backup)
+    local_db.audit("shipper_delete", shipper_id, backup.name)
+    return {"ok": True, "shipper_id": shipper_id, "backup": backup.name}

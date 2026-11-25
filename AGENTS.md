@@ -51,7 +51,7 @@
 ### 0-2. 구조
 - 화면(Next.js)은 **정적 export만** 쓴다. API Routes, Server Actions, SSR(`getServerSideProps`, 서버 컴포넌트에서 데이터 가져오기), middleware를 쓰지 않는다. `next.config`의 `output: 'export'`를 지운다면 그것은 버그다.
 - 모든 처리 로직은 FastAPI(`backend/app/`)에 둔다. 화면은 `frontend/lib/api/`의 함수로 API만 부른다.
-- 화면은 제안서 가이드라인 1~4번 = 탭 4개, 탭 하나를 한 사람이 맡는다. 탭 페이지는 데이터를 만들지 않고 각 담당 API와 부품을 불러 쓴다.
+- 화면은 홈(전체 현황) + 제안서 가이드라인 1~4번 탭 4개 + 5 연결 설정(가이드라인 밖, KHS, HS 요청 11/25) = 탭 5개, 탭 하나를 한 사람이 맡는다. 탭 순서는 1 기업 설정 → 2 서류 등록·만료 알림 → 3 재질·실적 판단 → 4 검역 리스트 → 5 연결 설정(탭 순서 변경: HS 요청 11/25 21시 — 기업 설정(작업 화주·규칙)이 뒤 단계 결과를 바꾸므로 맨 앞). 작업 화주는 탭 1 첫 화면에서 고르고 모든 탭이 같이 쓴다. 탭마다 왼쪽 사이드바에 세부 화면 2~3개를 두고, 한 화면에 몰아 넣지 않는다. 탭·사이드바 목록은 `frontend/lib/nav.ts` 한 곳에서 정한다. 탭 페이지는 데이터를 만들지 않고 각 담당 API와 부품을 불러 쓴다.
 - 공통 코드(`backend/app/core/`(schema 포함), `main.py`, `requirements.txt`, `frontend/app/layout.tsx`)는 PM만 고친다. 필요하면 PR 설명에 변경 요청을 쓴다.
 
 ### 0-3. 화주명 비공개 (가장 중요)
@@ -129,7 +129,8 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 | A4-1 | 화주 설정: 공통 규칙 / 화주별 선택 규칙 체크박스, 새 화주 추가 | 4 | JUJ | P1 | [개선] | `customs/companies/company_a.py`의 `CompanyRules`(코드) → `rules/*.json`(설정) |
 | A4-2 | 규칙 적용 엔진(설정 → A1·A3에 주입), 시험 실행 | 4 | JUJ | P1 | [신규] | |
 | A4-3 | 가상 화주 2곳 결과가 설정만으로 달라지는 시연 | 4 | JUJ | P1 | [신규] | |
-| H-1 | 탭 1 메인 화면(검역이력 표, 상단 배지·버튼 4개) — 제안서 가이드라인 ④ | 1, 가이드라인 ④ | KHS | P0 | [신규] | 기존은 구글 시트 |
+| H-0 | 홈(전체 현황) 대시보드: 탭별 숫자 카드, 다가오는 만료, 연결 상태, 하루 작업 순서 — 제안서와 다름: HS 요청 11/25 | 가이드라인 ④ | KHS | P1 | [신규] | |
+| H-1 | 탭 4 검역 리스트(검역이력 표, 상단 배지·버튼 4개, 확인 필요, 서류 올리기) — 제안서 가이드라인 ④ | 1, 가이드라인 ④ | KHS | P0 | [신규] | 기존은 구글 시트 |
 | H-3 | 탭 3 화면(`/judge`): 신고건 묶음 목록·판단 근거·품목사항 엑셀 | 3 | LSY | P1 | [신규] | 기존은 시트 빈 행·셀 메모 |
 | C-1 | 공통: 스키마, 설정, LLM, 마스킹, 저장소(드라이브·로컬·Supabase) | 공통 | KHS | P0 | [신규] | `common/` |
 | C-2 | 공개 정보 수집(재질 코드, 공전, 구분표) → Supabase | 공통 | KHS | P1 | [재사용] | `law_data/` |
@@ -139,16 +140,18 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 
 **P0 연결 순서:** C-4(로그인) → A0-1 → A1-1 → A1-2 → A3-1(이력만) → A3-4 → A3-5, 화면은 H-1에서 표 보기 + "품목사항 만들기" 버튼까지.
 
-**화면 탭 4개 (1인 1탭, 팀 결정 11/25):**
+**화면: 홈 + 탭 5개 (1인 1탭, 팀 결정 11/25 · 사이드바·대시보드: HS 요청 11/25 · 탭 순서 변경: HS 요청 11/25 21시):**
 
-| 탭 | 경로 | 제안서 가이드라인 | 담당 |
-|---|---|---|---|
-| 1. 검역 리스트 | `/` | 1. [기구·용기] 검역 리스트 자동 작성 (서류 판독→검역이력 행, 자료 추가 필요, 서류 대조, 검수 패널, 메인 화면 버튼 4개) | KHS |
-| 2. 서류 등록·만료 알림 | `/registry` | 2. [기구·용기] 수입신고서·검사성적서 등록 및 만료 알림(실적·해외제조업소 코드) | YHS |
-| 3. 재질·실적 판단 | `/judge` | 3. 재질·실적 판단 및 신고 묶음 (신고건 묶음 목록, 판단 근거, 품목사항 엑셀) | LSY |
-| 4. 기업 설정 | `/settings` | 4. 기업 설정(규칙 표준화) | JUJ |
+| 순서 | 탭 | 경로 | 사이드바 메뉴(세부 화면) | 제안서 가이드라인 | 담당 |
+|---|---|---|---|---|---|
+| 0 | 홈 (전체 현황) | `/` | 전체 현황 | 4개 탭의 숫자 요약·다가오는 만료·연결 상태·하루 작업 순서 | KHS |
+| 1 | 1. 기업 설정 | `/settings` | 화주 선택·관리 `/settings`(작업 화주 고르기·추가·삭제, 기본 A·B 삭제 불가) · 규칙 설정 `/settings/rules` | 4. 기업 설정(규칙 표준화) | JUJ (화주 선택 화면 배치 KHS) |
+| 2 | 2. 서류 등록·만료 알림 | `/registry` | 실적 현황 `/registry` · 해외제조업소 코드 `/registry/factories` · 만료 알림 `/registry/alerts` | 2. [기구·용기] 수입신고서·검사성적서 등록 및 만료 알림(실적·해외제조업소 코드) | YHS |
+| 3 | 3. 재질·실적 판단 | `/judge` | 신고건 묶음 `/judge` · 판단 근거 `/judge/evidence` · 품목사항 엑셀 `/judge/item-sheet` | 3. 재질·실적 판단 및 신고 묶음 | LSY |
+| 4 | 4. 검역 리스트 | `/history` | 검역이력 표 `/history` · 확인 필요 `/history/review` · 서류 올리기 `/history/upload` | 1. [기구·용기] 검역 리스트 자동 작성 (서류 판독→검역이력 행, 자료 추가 필요, 서류 대조, 검수 패널, 버튼 4개) | KHS |
+| 5 | 5. 연결 설정 | `/connections` | 전체 연결 `/connections` · AI 모델 `/connections/ai` | (가이드라인 밖, HS 요청 11/25) | KHS |
 
-탭 4개 = 제안서 가이드라인 1~4번 = 담당 1명씩. 5·6번(주간 보고서)은 weekly_report 저장소에서 한다.
+탭 1~4 = 제안서 가이드라인 4·2·3·1번 = 담당 1명씩(탭 순서 변경: HS 요청 11/25 21시). 탭 5 연결 설정은 가이드라인 밖 공통 화면(KHS, HS 요청 11/25)으로, AI·외부 API 연결 상태와 [연결 검사], AI 모델 고르기를 둔다. 화면 틀은 대시보드 형태: 파란 바탕 위 큰 흰 판, 왼쪽 파란 사이드바(지금 탭의 세부 메뉴, ☰로 접기), 위쪽 탭 줄(홈 + 탭 5개), 연한 카드·숫자 카드(DESIGN 8장). 5·6번(주간 보고서)은 weekly_report 저장소에서 한다.
 
 ---
 
@@ -246,22 +249,27 @@ declaration_list/
 ├─ frontend/
 │  ├─ package.json  next.config.ts  tsconfig.json                   (KHS)
 │  ├─ app/
-│  │  ├─ layout.tsx            (KHS) 상단 탭 4개 + 로그인 확인(없으면 /login으로). 탭 4개 고정(그리기는 components/auth/AuthGate)
+│  │  ├─ layout.tsx            (KHS) 대시보드 틀(위 탭 홈+5개, 왼쪽 사이드바) + 로그인 확인(없으면 /login으로). 그리기는 components/auth/AuthGate, 목록은 lib/nav.ts
 │  │  ├─ login/page.tsx        (KHS) 첫 화면: 로그인
-│  │  ├─ page.tsx              (KHS) 탭 1. 검역 리스트(메인 화면): 부품 배치만
-│  │  ├─ registry/page.tsx     (YHS) 탭 2. 서류 등록·만료 알림
-│  │  ├─ judge/page.tsx        (LSY) 탭 3. 재질·실적 판단
-│  │  └─ settings/page.tsx     (JUJ) 탭 4. 기업 설정
+│  │  ├─ page.tsx              (KHS) 홈(전체 현황 대시보드): 각 탭 API 숫자만 모음
+│  │  ├─ settings/             (JUJ) 탭 1. 기업 설정: page.tsx(화주 선택·관리, 배치 KHS) rules/(규칙 설정)
+│  │  ├─ registry/             (YHS) 탭 2. 서류 등록·만료 알림: page.tsx(실적 현황) factories/ alerts/
+│  │  ├─ judge/                (LSY) 탭 3. 재질·실적 판단: page.tsx(신고건 묶음) evidence/ item-sheet/
+│  │  ├─ history/              (KHS) 탭 4. 검역 리스트: page.tsx(검역이력 표) review/ upload/
+│  │  └─ connections/          (KHS) 탭 5. 연결 설정: page.tsx(전체 연결) ai/(AI 모델)
 │  ├─ components/
-│  │  ├─ ui/                   (공통) 표·배지·버튼·tokens.ts
+│  │  ├─ ui/                   (공통) 표·배지·버튼·Card(PageHeader·StatCard)·ShipperSelect·tokens.ts
 │  │  ├─ home/                 (KHS) TopBar/ HistoryTable/ CellEditor/
 │  │  ├─ auth/                 (KHS) LoginForm/ UserMenu/
 │  │  ├─ reader/               (KHS) UploadDialog/
 │  │  ├─ review/               (KHS) ReviewPanel/ SourceViewer/
 │  │  ├─ judge/                (LSY) DeclarationGroups/ ItemSheetButton/ JudgeEvidence/
 │  │  ├─ registry/             (YHS) RecordTable/ RecordUpload/ ExpiryAlerts/ FactoryCodeTable/
-│  │  └─ settings/             (JUJ) ShipperList/ RuleGroups/ DryRunCompare/
+│  │  ├─ settings/             (JUJ) ShipperList/ RuleGroups/ DryRunCompare/
+│  │  └─ connections/          (KHS) ConnectionsView(전체 연결 표·AI 모델 카드 공용)
 │  └─ lib/
+│     ├─ nav.ts                (KHS) 상단 탭·사이드바 메뉴 목록(경로·순서는 여기 한 곳)
+│     ├─ hooks/useShipper.ts   (KHS) 화주 목록·고른 화주(모든 화면 공유)
 │     ├─ api/client.ts         (KHS) 공통 fetch·오류 처리
 │     ├─ api/<영역>.ts          core·reader·history(KHS) registry(YHS) judge(LSY) settings(JUJ)
 │     ├─ types/                (KHS) 백엔드 스키마와 같은 타입
@@ -333,8 +341,8 @@ a3_judge/
 | `a*/router.py` (영역) | 같은 영역 기능 추가 | 영역 담당 1명만 수정 |
 | `core/schema/` | 모두 칸을 추가하려 함 | 파일을 모델별로 나눔. 변경은 PR 설명으로 요청 → KHS 반영 |
 | `requirements.txt` `package.json` | 라이브러리 추가 | KHS만 수정([RULES.md 9장](RULES.md#9-의존성-추가-절차)) |
-| `frontend/app/layout.tsx` | 메뉴 추가 | 탭 4개 고정(1. 검역 리스트 · 2. 서류 등록·만료 알림 · 3. 재질·실적 판단 · 4. 기업 설정) |
-| `frontend/app/*/page.tsx` | 탭에 부품 넣기 | 탭 페이지는 그 탭 담당만 수정(탭 1 KHS, 탭 2 YHS, 탭 3 LSY, 탭 4 JUJ). 다른 담당은 부품을 만들어 props만 알려 줌([RULES.md 6장](RULES.md#6-탭과-부품의-경계)) |
+| `frontend/app/layout.tsx`, `frontend/lib/nav.ts` | 메뉴 추가 | 홈 + 탭 5개 고정(1. 기업 설정 · 2. 서류 등록·만료 알림 · 3. 재질·실적 판단 · 4. 검역 리스트 · 5. 연결 설정 — 탭 순서 변경: HS 요청 11/25 21시). 사이드바 메뉴 추가는 `lib/nav.ts`에 PM이 반영 |
+| `frontend/app/*/page.tsx` | 탭에 부품 넣기 | 탭 페이지는 그 탭 담당만 수정(홈 KHS, 탭 1 JUJ(첫 화면 화주 선택은 KHS), 탭 2 YHS, 탭 3 LSY, 탭 4 KHS, 탭 5 KHS). 다른 담당은 부품을 만들어 props만 알려 줌([RULES.md 6장](RULES.md#6-탭과-부품의-경계)) |
 | 화면 문구 | 한 파일에 모두 추가 | `lib/text/<영역>.ts`로 나눔 |
 | `rules/shippers/*.json` | 설정 키 추가 | JUJ만 수정. 다른 담당은 필요한 키를 요청 |
 | `samples/` | 가상 서류 추가 | 화주·B/L 폴더 단위로 추가, 기존 폴더 파일은 만든 사람만 수정 |
@@ -620,6 +628,8 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 | `GET /settings/rules` | JUJ | 규칙 목록(공통/선택, 설명) | P1 |
 | `GET /settings/shippers/{id}` · `PUT` · `POST /settings/shippers` | JUJ | 화주 설정 조회·저장·추가 | P1 |
 | `POST /settings/shippers/{id}/dry-run` | JUJ | 시험 실행(저장 없이 결과 미리보기) | P1 |
+| `DELETE /settings/shippers/{id}` | JUJ (HS 요청 11/25, KHS 작성 — JUJ 확인 필요) | 화주 삭제. 기본 A·B는 409, 설정 파일은 `DATA_DIR/deleted_shippers/`로 옮겨 백업 | P1 |
+| `GET /core/connections` · `POST /core/connections/check` · `PUT /core/ai-choice` | KHS | 탭 5 연결 설정 화면용: 연결 상태 표, [연결 검사](실제 접속, AI는 모델 목록만 받아 토큰 안 씀), 사용할 AI·모델 고르기(`data/ai_choice.json`, .env보다 우선) — HS 요청 11/25 [신규] | P1 |
 
 화면별 호출은 [DESIGN.md](DESIGN.md)에 있다.
 
@@ -780,9 +790,9 @@ frontend/components/review/ReviewPanel/ 에 서류 검수 패널을 만들어라
 - 색만으로 구분하지 말고 글자(불일치/수정)를 함께 보여라. 빈·불러오는 중·오류 상태를 모두 그려라.
 ```
 
-**KHS — 탭 1 메인 화면 (H-1, P0)**
+**KHS — 탭 4 검역 리스트 (H-1, P0)**
 ```
-frontend/app/page.tsx 에 메인 화면(검역이력 표)을 만들어라. DESIGN.md 3장을 따른다.
+frontend/app/history/page.tsx 에 검역이력 표를 만들어라. DESIGN.md 3장을 따른다.
 - 데이터는 lib/api/history.ts(getHistory, getBadges)만 쓴다. 홈에서 데이터를 만들거나 계산하지 마라.
 - 행을 고르면 아래에 components/review/ReviewPanel 을, "품목사항 만들기"는 components/judge/ItemSheetButton 을 불러 쓴다(아직 없으면 자리표시 컴포넌트).
 - 버튼은 서류 올리기·품목사항 만들기·새로고침·설정 네 개만 둔다.

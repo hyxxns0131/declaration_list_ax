@@ -84,7 +84,7 @@ export function TopBar({
         <Button onClick={onRefresh} disabled={!shipperId || refreshing} title={HOME.buttons.refresh}>
           ⟳ {refreshing ? T.loading : HOME.buttons.refresh}
         </Button>
-        <Link href="/settings/" title={HOME.buttons.settings} style={{ fontSize: 18, textDecoration: "none" }}>
+        <Link href="/settings/rules/" title={HOME.buttons.settings} style={{ fontSize: 18, textDecoration: "none" }}>
           ⚙
         </Link>
       </span>

@@ -1,12 +1,11 @@
 "use client";
-// 탭 2. 서류 등록·만료 알림 (DESIGN 6장): 필터 · 실적 표 · 수입신고서·성적서 올리기 · 만료 임박. 배치만 한다. 담당: YHS
+// 탭 2. 서류 등록·만료 알림 › 실적 현황 (DESIGN 6-1): 숫자 카드 · 필터 · 실적 표 · 수입신고서·성적서 올리기. 배치만 한다. 담당: YHS
 import { useCallback, useEffect, useState } from "react";
 
-import { ExpiryAlerts } from "@/components/registry/ExpiryAlerts";
-import { FactoryCodeTable } from "@/components/registry/FactoryCodeTable";
 import { RecordTable } from "@/components/registry/RecordTable";
 import { RecordUpload } from "@/components/registry/RecordUpload";
 import { Button } from "@/components/ui/Button";
+import { Card, PageHeader, StatCard, StatGrid } from "@/components/ui/Card";
 import { EmptyState, ErrorLine, Skeleton } from "@/components/ui/StateBox";
 import { space } from "@/components/ui/tokens";
 import { shippers as getShippers } from "@/lib/api/core";
@@ -15,8 +14,8 @@ import { T } from "@/lib/text/common";
 import { REGISTRY } from "@/lib/text/registry";
 import type { Shipper } from "@/lib/types/core";
 import type { PreciseRecord } from "@/lib/types/registry";
+import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
 
-const SHIPPER_KEY = "dl_shipper";
 
 export default function RegistryPage() {
   const [shippers, setShippers] = useState<Shipper[]>([]);
@@ -27,7 +26,7 @@ export default function RegistryPage() {
   const [records, setRecords] = useState<PreciseRecord[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [upload, setUpload] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [all, setAll] = useState<PreciseRecord[] | null>(null);
 
   useEffect(() => {
     getShippers()
@@ -45,6 +44,9 @@ export default function RegistryPage() {
     getRecords({ shipperId, maker, model, status })
       .then(setRecords)
       .catch(setError);
+    getRecords({ shipperId, status: "" })
+      .then(setAll)
+      .catch(setError);
   }, [shipperId, maker, model, status]);
 
   useEffect(() => {
@@ -53,20 +55,33 @@ export default function RegistryPage() {
   }, [load]);
 
   const name = shippers.find((s) => s.shipper_id === shipperId)?.display_name ?? shipperId;
-  const changed = () => {
-    load();
-    setReloadKey((k) => k + 1);
-  };
+  const changed = load;
+  const count = (st: string) => (all ? all.filter((r) => r.status === st).length : null);
 
   return (
     <div>
-      <h2 style={{ margin: `0 0 ${space.sm}px` }}>{REGISTRY.title}</h2>
+      <PageHeader
+        title={REGISTRY.title}
+        sub={REGISTRY.sub}
+        actions={
+          <Button variant="primary" disabled={!shipperId} onClick={() => setUpload(true)}>
+            {REGISTRY.upload}
+          </Button>
+        }
+      />
+      <StatGrid>
+        <StatCard label={REGISTRY.stats.all} value={all?.length ?? null} tone="info" />
+        <StatCard label={REGISTRY.stats.valid} value={count("유효")} tone="ok" />
+        <StatCard label={REGISTRY.stats.soon} value={count("만료 임박")} tone="warn" href="/registry/alerts/" />
+        <StatCard label={REGISTRY.stats.expired} value={count("만료")} tone="neutral" />
+      </StatGrid>
+      <Card>
       <div style={{ display: "flex", gap: space.sm, alignItems: "center", flexWrap: "wrap", marginBottom: space.sm }}>
         <select
           value={shipperId}
           onChange={(e) => {
             setShipperId(e.target.value);
-            window.localStorage.setItem(SHIPPER_KEY, e.target.value);
+            rememberShipper(e.target.value);
           }}
           style={{ padding: space.xs }}
           aria-label={T.shipper}
@@ -86,9 +101,6 @@ export default function RegistryPage() {
           <option value="만료 임박">만료 임박</option>
           <option value="만료">만료</option>
         </select>
-        <Button variant="primary" style={{ marginLeft: "auto" }} disabled={!shipperId} onClick={() => setUpload(true)}>
-          {REGISTRY.upload}
-        </Button>
       </div>
 
       {error !== null && <ErrorLine error={error} onRetry={load} />}
@@ -104,10 +116,7 @@ export default function RegistryPage() {
         />
       )}
       {records && records.length > 0 && <RecordTable records={records} onChanged={changed} />}
-
-      <FactoryCodeTable reloadKey={reloadKey} onChanged={() => setReloadKey((k) => k + 1)} />
-
-      {shipperId && <ExpiryAlerts shipperId={shipperId} reloadKey={reloadKey} />}
+      </Card>
 
       {upload && <RecordUpload shipperId={shipperId} shipperName={name} onClose={() => setUpload(false)} onDone={changed} />}
     </div>
