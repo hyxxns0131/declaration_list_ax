@@ -41,3 +41,36 @@ export interface Shipper {
   shipper_id: string;
   display_name: string;
 }
+
+// 설정 › 연결 상태 (GET /core/connections). 키 값은 오지 않는다
+export type ConnState = "ok" | "fail" | "off";
+
+export interface ConnCheck {
+  state: ConnState;
+  message: string;
+  checked_at: string;
+  elapsed_ms: number;
+}
+
+export interface AiModelOption {
+  id: string;
+  tier: string; // 추천 버전의 비용·속도 등급
+  group: "recommended" | "account" | "custom"; // 추천 / 이 계정에서 쓸 수 있는 전체 버전 / 직접 입력
+  available: boolean | null; // null = 아직 검사 전
+}
+
+export interface ConnRow {
+  key: string;
+  label: string;
+  uses: string;
+  configured: boolean;
+  config_reason: string;
+  last: ConnCheck | null;
+  ai?: { in_use: boolean; model: string; models: AiModelOption[]; account_list: boolean };
+}
+
+export interface Connections {
+  provider: "openai" | "claude";
+  llm_enabled: boolean;
+  rows: ConnRow[];
+}

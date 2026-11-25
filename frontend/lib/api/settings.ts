@@ -26,3 +26,9 @@ export const dryRun = (id: string, settings: ShipperValues, blNo?: string) =>
     method: "POST",
     body: JSON.stringify({ settings, bl_no: blNo ?? null }),
   });
+
+/** 화주 삭제(기본 화주 A·B는 409). 파일은 지우지 않고 백업 폴더로 옮긴다. HS 요청 11/25 */
+export const deleteShipper = (id: string) =>
+  api<{ ok: boolean; shipper_id: string; backup: string }>(`/settings/shippers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
