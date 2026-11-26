@@ -16,6 +16,8 @@ from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
 from app.a3_judge.record_pick.multi_record import choose_split
 from app.a3_judge.record_pick.rank import choose_record, expiry_warning
+from app.a3_judge.rule_check.material_rule import check_material
+from app.a3_judge.rule_check.record_rule import check_record
 from app.a3_judge.spec_class.classify import auto_spec
 from app.core.schema.fields import Evidence
 from app.core.schema.history import (
@@ -33,6 +35,8 @@ from app.core.schema.history import (
 TAG_RECORD = "실적"
 TAG_MAKER = "제조사"
 TAG_SPEC = "재질 구분"
+TAG_MATERIAL_RULE = "재질 규칙"
+TAG_RECORD_RULE = "실적 규칙"
 
 
 def _is_doc_missing_mark(row: HistoryRow, col: str) -> bool:
@@ -246,6 +250,34 @@ def _record(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext, address
     return detail
 
 
+def _edited(row: HistoryRow, col: str) -> bool:
+    cell = row.cells.get(col)
+    return bool(cell and cell.final_value)
+
+
+def _rule_check(row: HistoryRow, ctx: JudgeContext, address: str) -> None:
+    """담당자가 직접 고친 재질·실적이 규칙에 맞는지 — 값은 바꾸지 않고 비고에만 표시(RULES 11-9)."""
+    mat_problems = (
+        check_material(row.text(C_MATERIAL), ctx.known_materials)
+        if _edited(row, C_MATERIAL)
+        else []
+    )
+    row.set_note(TAG_MATERIAL_RULE, " / ".join(mat_problems) or None)
+    rec_problems: list[str] = []
+    if _edited(row, C_RECORD):
+        _, code = split_maker(row.text(C_MAKER))
+        rec_problems = check_record(
+            row.text(C_RECORD),
+            material_list(row.text(C_MATERIAL)),
+            code,
+            address,
+            row.text(C_NAME_KO),
+            ctx.records,
+            ctx.today,
+        )
+    row.set_note(TAG_RECORD_RULE, " / ".join(rec_problems) or None)
+
+
 def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, dict]:
     if row.locked:
         return row, {"locked": True}
@@ -285,6 +317,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     _spec(row)
     maker_detail = _maker(row, past, ctx, product)
     record_detail = _record(row, past, ctx, maker_detail.get("address", ""))
+    _rule_check(row, ctx, maker_detail.get("address", ""))
     row.refresh_status()
     detail = {
         "material": {"candidates": m.candidates, "evidence": [e.model_dump() for e in m.evidence]},
