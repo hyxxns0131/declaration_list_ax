@@ -31,6 +31,9 @@ from app.core.schema.history import (
 from app.core.schema.shipper import ShipperSettings
 from app.core.unipass.client import CargoInfo
 
+# 모선 칸 근거 note 머리말. 서류 대조(crosscheck)가 읽어 유니패스 모선과 서류 모선을 비교한다(HS 결정 11/26)
+UNIPASS_VESSEL = "유니패스 모선명: "
+
 
 def _first(docs: list[ParsedDocument], doc_type: str) -> ParsedDocument | None:
     return next((d for d in docs if d.doc_type == doc_type), None)
@@ -70,6 +73,7 @@ class _Line:
             model=base.model,
             description=(self.ci.description if self.ci else "") or base.description,
             qty_per_carton=self.pick("qty_per_carton")[0],  # type: ignore[arg-type]
+            quantity=self.pick("quantity")[0],  # type: ignore[arg-type]
             cartons=self.pick("cartons")[0],  # type: ignore[arg-type]
             net_kg=self.pick("net_kg")[0],  # type: ignore[arg-type]
             amount=self.ci.amount if self.ci else None,
@@ -111,8 +115,14 @@ def build_rows(
 
     merged_parts = None
     if getattr(settings, "merge_spare_parts", False):
+        pair_parts = [ln for ln in lines if ln.is_part]
         lines, merged_parts = merge_spare_lines(lines)
         if merged_parts:
+            # 합친 부분품 행의 입수 = 부분품 줄 전체 개수의 합(HS 결정 11/26).
+            # merge.py(LSY)는 입수를 비워 두므로 여기서 채운다 — LSY 변경 요청
+            part_pcs = [ln.pcs() for ln in pair_parts]
+            if part_pcs and all(v is not None for v in part_pcs):
+                merged_parts.line.quantity = round(sum(v for v in part_pcs if v is not None), 4)
             lines = [*lines, merged_parts.line]
     if not lines:
         lines = [DocumentLine()]  # 서류에 품목이 없어도 B/L 행 1개는 만든다
@@ -135,7 +145,13 @@ def build_rows(
 
         if cargo:
             up = [Evidence(source="UNIPASS", ref=cargo.bl_no, note="유니패스 화물진행정보")]
-            row.set_ai(C_VESSEL, cargo.vessel or (bl.vessel if bl else "") or None, up)
+            # 모선명: 유니패스 값을 근거에 따로 남긴다 → 서류 모선과 대조(HS 결정 11/26 "둘이 비교해서 다르면 알려주게")
+            v_ev = up + (
+                [Evidence(source="UNIPASS", ref=cargo.bl_no, note=UNIPASS_VESSEL + cargo.vessel)]
+                if cargo.vessel
+                else []
+            )
+            row.set_ai(C_VESSEL, cargo.vessel or (bl.vessel if bl else "") or None, v_ev)
             for col, v in (
                 ("반입지 코드", cargo.arrival_place_code),
                 ("반입일", cargo.arrival_date),
@@ -147,17 +163,31 @@ def build_rows(
                 row.set_ai(col, v or None, up if v else [])
         else:
             vdoc = bl if bl and bl.vessel else ci
-            row.set_ai(C_VESSEL, (vdoc.vessel if vdoc else "") or None, _ev(vdoc, "서류 모선명"))
+            vessel = (vdoc.vessel if vdoc else "") or None
+            if vessel:
+                row.set_ai(C_VESSEL, vessel, _ev(vdoc, "서류 모선명"))
+            else:
+                row.set_ai(
+                    C_VESSEL, None, flag="need_check", memo="모선명 확인 필요 (서류에서 못 찾음)"
+                )
 
         if co and co.manufacturer_name:
             row.set_ai(C_MAKER, co.manufacturer_name, _ev(co, "C/O 생산자"))
 
         pair = src_of.get(id(line))
-        for col, name in ((C_QTY, "qty_per_carton"), (C_CARTONS, "cartons"), (C_NET, "net_kg")):
+        for col, name in ((C_CARTONS, "cartons"), (C_NET, "net_kg")):
             v = getattr(line, name)
             src = pair.pick(name)[1] if pair else "CI"
             doc = pl if src == "PL" else ci
             row.set_ai(col, v, _ev(doc) if v is not None else [])
+        # 입수 = 전체 개수(PCS 합계)(HS 결정 11/26). 카톤당 수량은 근거 메모에 남긴다
+        pcs = line.pcs()
+        qsrc = (pair.pick("quantity")[1] or pair.pick("qty_per_carton")[1]) if pair else "CI"
+        qdoc = pl if qsrc == "PL" else ci
+        how = "서류 수량(PCS)" if line.quantity is not None else "카톤당 수량 x 카톤 수"
+        per = f" · 카톤당 {line.qty_per_carton:g}" if line.qty_per_carton is not None else ""
+        note = f"입수 = 전체 개수: {how}{per}"
+        row.set_ai(C_QTY, pcs, _ev(qdoc, note) if pcs is not None else [])
 
         currency = (ci.currency if ci else "") or ""
         row.set_ai(C_CURRENCY, currency or None, _ev(ci))

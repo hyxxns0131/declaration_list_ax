@@ -8,19 +8,26 @@ import re
 from app.core.schema.document import DocType
 
 # 파일 이름 조각(소문자·영숫자/한글만) → 서류 종류. 앞에 있는 것부터 본다.
+# 수입신고필증은 맨 앞: 'XXX_BL123_수입신고필증.pdf'처럼 B/L 번호가 이름에 들어 있어도 B/L로 잘못 보지 않게
+# (실제 서류 평가에서 B/L로 잘못 분류된 2건, HS 11/26 결정)
 NAME_TOKENS: list[tuple[DocType, tuple[str, ...]]] = [
+    (
+        "IMPORT_DECL",
+        ("수입신고필증", "신고필증", "수입신고서", "importdeclaration", "importpermit"),
+    ),
     ("INTAKE_LIST", ("입고", "intake")),
     ("CO", ("co", "origin", "원산지", "certificateoforigin")),
     ("BL", ("bl", "billoflading", "선하증권")),
     ("PL", ("pl", "packing", "packinglist", "패킹", "포장명세서")),
     ("CI", ("ci", "invoice", "commercialinvoice", "인보이스")),
-    ("IMPORT_DECL", ("수입신고서", "importdeclaration")),
     ("TEST_REPORT", ("시험성적서", "검사성적서", "testreport")),
     ("LABEL", ("라벨", "한글표시", "label")),
 ]
 
 # 서류 본문 첫머리 제목 → 서류 종류
 TITLE_WORDS: list[tuple[DocType, str]] = [
+    ("IMPORT_DECL", "수입신고필증"),
+    ("IMPORT_DECL", "수입신고서"),
     ("CO", "certificateoforigin"),
     ("BL", "billoflading"),
     ("PL", "packinglist"),
@@ -67,3 +74,40 @@ def classify_by_content(head_text: str) -> DocType | None:
 
 def classify(filename: str, head_text: str = "") -> DocType | None:
     return classify_by_name(filename) or classify_by_content(head_text)
+
+
+# ── 규칙으로 모르면 OpenAI 분류 (검역 리스트 탭 1단계) ─────────────────────────
+SHIPPING_TYPES: tuple[DocType, ...] = ("CI", "PL", "BL", "CO", "INTAKE_LIST")
+
+
+def classify_shipping_name(filename: str) -> DocType | None:
+    """사진·스캔 이미지라도 이름에 CI·PL·B/L 등이 있으면 선적서류로 본다(이미지 규칙보다 먼저)."""
+    stem = filename.rpartition(".")[0] or filename
+    got = classify_by_name(stem + ".pdf")
+    return got if got in SHIPPING_TYPES else None
+
+
+def classify_with_ai(filename: str, head_text: str, mask_names: list[str]) -> DocType | None:
+    """파일 이름 → 본문 키워드로도 모를 때만. 끝까지 모르면 None(호출한 쪽이 '서류 종류 확인 필요')."""
+    from typing import Literal
+
+    from pydantic import BaseModel
+
+    from app.core.llm import call_structured
+
+    class _Out(BaseModel):
+        doc_type: Literal[
+            "CI", "PL", "BL", "CO", "INTAKE_LIST", "IMPORT_DECL", "TEST_REPORT", "UNKNOWN"
+        ] = "UNKNOWN"
+        reason: str = ""
+
+    out = call_structured(
+        "a0_reader/classify_doc",
+        2,
+        {"filename": filename, "head_text": head_text[:1500]},
+        _Out,
+        mask_names=mask_names,
+    )
+    if out is None or out.doc_type == "UNKNOWN":
+        return None
+    return out.doc_type

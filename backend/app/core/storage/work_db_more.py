@@ -42,6 +42,26 @@ def documents_for_bl(shipper_id: str, bl_no: str) -> list[ParsedDocument]:
     return [ParsedDocument.model_validate_json(r["parsed"]) for r in rs]
 
 
+def list_documents(shipper_id: str) -> list[tuple[ParsedDocument, str, str, str]]:
+    """화주의 서류 전부 (판독 결과, 파일 이름, 올린 시각, 선적 건 B/L) — 오래된 것 → 최근. 선적 건 목록용.
+    선적 건 B/L은 폴더 단위로 맞춘 값(set_folder_bl)이라 서류 하나의 B/L 오타와 다를 수 있다."""
+    with transaction() as conn:
+        rs = conn.execute(
+            "select parsed, filename, created_at, bl_no from documents where shipper_id = ?"
+            " order by created_at",
+            (shipper_id,),
+        ).fetchall()
+    return [
+        (
+            ParsedDocument.model_validate_json(r["parsed"]),
+            r["filename"],
+            r["created_at"],
+            r["bl_no"] or "",
+        )
+        for r in rs
+    ]
+
+
 def set_folder_bl(folder_id: str, bl_no: str) -> None:
     """폴더 단위로 B/L 번호를 맞춘다(B/L 번호는 폴더 안 서류 한 곳에만 있을 수 있다)."""
     with transaction() as conn:
