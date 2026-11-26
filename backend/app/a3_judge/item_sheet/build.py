@@ -55,6 +55,15 @@ def clean_name_en(name: str) -> str:
     return out
 
 
+def excel_header(name: str, limit: int) -> str:
+    """엑셀(유니패스 업로드) 머리글: 기존 양식 글자 그대로 '제품명(100)', '대표품목여부(Y or N)' (11/25 결정).
+    화면 미리보기는 HEADERS의 짧은 이름('제품명')을 쓴다(11/26 LSY)."""
+    return f"{name}(Y or N)" if name == "대표품목여부" else f"{name}({limit})"
+
+
+EXCEL_HEADERS: tuple[str, ...] = tuple(excel_header(n, lim) for n, lim in HEADERS)
+
+
 class ItemSheet(BaseModel):
     rows: list[list[str]] = PField(default_factory=list)
     warnings: list[str] = PField(default_factory=list)

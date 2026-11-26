@@ -8,7 +8,7 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 
-from app.a3_judge.item_sheet.build import HEADERS, ItemSheet
+from app.a3_judge.item_sheet.build import EXCEL_HEADERS, ItemSheet
 from app.core.config import REPO_ROOT
 
 TEMPLATE = REPO_ROOT / "backend" / "templates" / "item_sheet.xlsx"
@@ -18,7 +18,7 @@ def new_template() -> Workbook:
     wb = Workbook()
     ws = wb.active
     ws.title = "품목사항"
-    ws.append([h for h, _ in HEADERS])
+    ws.append(list(EXCEL_HEADERS))
     return wb
 
 

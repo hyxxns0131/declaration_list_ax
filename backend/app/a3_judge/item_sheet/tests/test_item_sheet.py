@@ -4,9 +4,15 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from app.a3_judge.item_sheet.build import HEADERS, build_item_sheet, clean_name_en, split_cargo
+from app.a3_judge.item_sheet.build import (
+    EXCEL_HEADERS,
+    HEADERS,
+    build_item_sheet,
+    clean_name_en,
+    split_cargo,
+)
 from app.a3_judge.item_sheet.validate import check_one_declaration
-from app.a3_judge.item_sheet.writer import write_xlsx
+from app.a3_judge.item_sheet.writer import TEMPLATE, write_xlsx
 from app.a4_settings.engine.service import merge_rules
 from app.core.schema.history import (
     C_ARRIVAL,
@@ -127,6 +133,19 @@ def test_warnings():
 def test_write_xlsx_text_cells():
     data = write_xlsx(build_item_sheet([row("m1")]))
     ws = load_workbook(BytesIO(data)).active
-    assert [c.value for c in ws[1]] == [h for h, _ in HEADERS]
+    assert [c.value for c in ws[1]] == list(EXCEL_HEADERS)
     assert ws.cell(2, 8).value == "0001"  # 앞자리 0 보존(글자로)
     assert ws.cell(2, 3).value == "Y"
+
+
+def test_headers_excel_vs_screen():
+    """엑셀은 기존 양식 글자 '제품명(100)', 화면 미리보기는 짧은 이름 '제품명' (11/26)."""
+    assert EXCEL_HEADERS[:3] == ("제품명(100)", "한글명(100)", "대표품목여부(Y or N)")
+    assert EXCEL_HEADERS[6] == "화물관리번호1(11)"
+    assert [h for h, _ in HEADERS][:3] == ["제품명", "한글명", "대표품목여부"]
+
+
+def test_template_file_matches_headers():
+    """templates/item_sheet.xlsx(머리글만 다시 만든 양식)와 코드 머리글이 같아야 한다."""
+    ws = load_workbook(TEMPLATE).active
+    assert ws.title == "품목사항" and [c.value for c in ws[1]] == list(EXCEL_HEADERS)
