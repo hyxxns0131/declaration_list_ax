@@ -55,3 +55,18 @@ def test_smallest_ignores_empty_cartons():
 def test_no_main_needs_check():
     got = choose_name_model([], [part("X9")])
     assert got[:2] == ("X9", True) and "본품 없음" in got[2]
+
+
+def test_quantity_is_sum_of_part_pcs():
+    """합친 행의 입수 = 부분품 줄 전체 개수 합(수량 PCS, 없으면 카톤당 수량 x 카톤 수, AGENTS 4-6)."""
+    a = part("M1", cartons=2)
+    a.quantity = 40
+    b = part("M1", cartons=3)
+    b.qty_per_carton = 10  # → 30
+    assert merge_spare_lines([main("M1"), a, b])[1].line.quantity == 70
+
+
+def test_quantity_empty_when_any_part_unknown():
+    a = part("M1")
+    a.quantity = 40
+    assert merge_spare_lines([main("M1"), a, part("M1")])[1].line.quantity is None
