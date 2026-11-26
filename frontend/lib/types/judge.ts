@@ -49,3 +49,21 @@ export interface ItemSheetOut {
   filename: string;
   warnings: string[];
 }
+
+// 품목사항 한꺼번에 내려받기 (HS 요청 11/26)
+export type ItemGroupBasis = "material" | "factory" | "product" | "record";
+
+export interface ItemGroup {
+  key: string;
+  label: string;
+  count: number;
+  declaration_ids: string[];
+  numbers: number[];
+}
+
+export interface ItemBulkOut {
+  file_id: string;
+  filename: string;
+  included: { declaration_id: string; number: number; filename: string; rows: number; warnings: string[] }[];
+  excluded: { declaration_id: string; number: number; reasons: string[] }[];
+}

@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { UserMenu } from "@/components/auth/UserMenu";
 import { ShipperBadge, ShipperGate } from "@/components/home/CurrentShipper";
+import { SideStepMark } from "@/components/review/ListStepper";
 import { colors, font, panelRadius, sidebarCurve, space } from "@/components/ui/tokens";
 import { ApiError, tokenStore } from "@/lib/api/client";
 import { connections, me } from "@/lib/api/core";
@@ -251,6 +252,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
                         {s.icon}
                       </span>
                       {open && s.label}
+                      {open && s.step !== undefined && <SideStepMark step={s.step} />}
                     </Link>
                   );
                 })}

@@ -10,9 +10,16 @@ from datetime import date
 from pathlib import Path
 
 from app.a0_reader.classify.service import classify_by_name
-from app.a0_reader.extract.service import extract_file
+from app.a0_reader.extract.service import extract_documents
 from app.a1_history.arrival.service import apply_cargo
-from app.a1_history.crosscheck.service import apply_flags, arrival_check, crosscheck_row
+from app.a1_history.crosscheck.ai_check import analyze as analyze_with_ai
+from app.a1_history.crosscheck.service import (
+    apply_flags,
+    arrival_check,
+    crosscheck_row,
+    mark_resolved,
+    merge_ai,
+)
 from app.a1_history.missing.service import DOC_LABELS, missing_docs
 from app.a1_history.price.service import fill_prices
 from app.a1_history.rows.build import build_rows, find_bl, merge_with_existing
@@ -22,8 +29,9 @@ from app.a3_judge.pipeline.service import judge_rows
 from app.a4_settings.engine.service import get_rules
 from app.core.config import get_settings
 from app.core.errors import AppError
+from app.core.masking import all_names
 from app.core.schema.document import ParsedDocument
-from app.core.schema.fields import Field
+from app.core.schema.fields import Evidence, Field
 from app.core.schema.history import (
     C_APPROVAL,
     C_MAKER,
@@ -89,17 +97,20 @@ def process_upload(shipper_id: str, files: list[tuple[str, bytes]]) -> dict:
     base = get_settings().data_path
     folder = base / "uploads" / shipper_id / folder_id
     folder.mkdir(parents=True, exist_ok=True)
-    mask = list(getattr(settings, "mask_names", []) or [])
+    mask = (
+        all_names()
+    )  # PC 전용 목록(DATA_DIR/mask_names.json)만. rules/*.json의 mask_names는 읽지 않는다
 
     docs: list[ParsedDocument] = []
     paths: dict[str, Path] = {}
     for filename, data in files:
         path = folder / _safe(filename)
         path.write_bytes(data)
-        doc = extract_file(path, filename, shipper_id, folder_id, mask)
-        work_db.save_document(doc, filename, path.relative_to(base).as_posix())
-        docs.append(doc)
-        paths[doc.doc_id] = path
+        # 엑셀 한 파일에 CI·PL 시트가 같이 있으면 서류 여러 개(HS 11/26)
+        for doc in extract_documents(path, filename, shipper_id, folder_id, mask):
+            work_db.save_document(doc, filename, path.relative_to(base).as_posix())
+            docs.append(doc)
+            paths[doc.doc_id] = path
 
     warnings: list[str] = []
     bls = {d.bl_no for d in docs if d.bl_no}
@@ -198,9 +209,14 @@ def _finish(rows: list[HistoryRow], docs: list[ParsedDocument], arrival_packages
     """대조 → 가격 → 상태. 저장은 하지 않는다."""
     bl_doc = next((d for d in reversed(docs) if d.doc_type == "BL"), None)
     fill_prices(rows)
-    for r in rows:
-        items = crosscheck_row(r, docs, rows)
+    # 코드 대조 → OpenAI 분석(선적 건 1번) → 둘 중 하나라도 다르면 불일치 → 불일치 칸 막기 (검역 리스트 탭 2단계)
+    rows_items = [(r, crosscheck_row(r, docs, rows)) for r in rows]
+    mask = all_names()
+    ai = analyze_with_ai(rows_items, docs, mask)
+    for r, items in rows_items:
+        merge_ai(items, (ai or {}).get(r.row_id))
         apply_flags(r, items)
+        mark_resolved(r, items, work_db_more.get_mismatches(r.row_id))
         arrival_check(r, bl_doc, arrival_packages)
         work_db_more.save_mismatches(r.row_id, items)
         r.refresh_status()
@@ -321,8 +337,17 @@ def patch_cell(
     elif value is not None:
         text = value.strip() if isinstance(value, str) else value
         cell.final_value = text if text != "" else None
-        same = cell.ai_value is None or str(cell.ai_value) == str(cell.final_value)
+        same = str(cell.ai_value) == str(cell.final_value)
+        # 사람이 입력한 값(프로그램 값과 다르거나 빈 칸을 채움)은 주황 '사람이 고름·입력' + 근거 MANUAL
         cell.flag = "ok" if same or cell.final_value is None else "edited"
+        if cell.final_value is not None and not same:
+            cell.evidence = [e for e in cell.evidence if e.source != "MANUAL"] + [
+                Evidence(
+                    source="MANUAL",
+                    ref="edit",
+                    note="MANUAL: 직접 입력" + (f" — {memo}" if memo else ""),
+                )
+            ]
     if memo is not None:
         if memo == "" and cell.flag in ("need_check", "mismatch"):
             cell.flag = "ok"  # 메모를 지우면 확인함(RULES 11-9)
@@ -410,6 +435,10 @@ def badges(shipper_id: str) -> dict:
         "edited": sum(1 for r in rows if any(c.flag == "edited" for c in r.cells.values())),
         "approved": sum(1 for r in rows if r.locked),
         "total": len(rows),
+        # 검역 리스트 탭 헤더 배지 (0단계, HS 요청 11/26)
+        "need_input": sum(1 for r in rows if not r.locked and "need_input" in r.attention_flags()),
+        "review_waiting": sum(1 for r in rows if r.needs_attention()),
+        "manual": sum(1 for r in rows if any(c.final_value is not None for c in r.cells.values())),
     }
 
 

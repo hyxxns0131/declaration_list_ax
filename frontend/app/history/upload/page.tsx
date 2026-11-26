@@ -1,33 +1,46 @@
 "use client";
-// 탭 3. 검역 리스트 › 서류 올리기 (DESIGN 3-1-1). 올리기 대화상자를 열고 결과 행으로 안내한다. 담당: KHS
-import Link from "next/link";
-import { useEffect, useState } from "react";
+// 탭 3. 검역 리스트 › ① 서류 올리기·추출 (DESIGN 3-1-1, 검역 리스트 탭 1단계). 선적 건 카드(받은 서류 칩·추출 상태,
+// 펼치면 서류별 추출값) + 드라이브 접수 폴더 가져오기(화주 설정 inbox). 올리기는 공통 머리 [서류 올리기]. 담당: KHS
+import { useCallback, useEffect, useState } from "react";
 
+import { ShipmentCards } from "@/components/reader/ShipmentCards";
 import { UploadDialog } from "@/components/reader/UploadDialog";
-import { ReviewPanel } from "@/components/review/ReviewPanel";
-import { Button } from "@/components/ui/Button";
-import { Card, PageHeader } from "@/components/ui/Card";
-import { ShipperSelect } from "@/components/ui/ShipperSelect";
-import { ErrorLine, Notice } from "@/components/ui/StateBox";
-import { font, space } from "@/components/ui/tokens";
+import { ListHeader } from "@/components/review/ListHeader";
+import { pillPrimary, pillSecondary } from "@/components/review/listUi";
+import { Card } from "@/components/ui/Card";
+import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
+import { colors, font, space } from "@/components/ui/tokens";
+import { getShipments } from "@/lib/api/history";
 import { scanInbox } from "@/lib/api/reader";
 import { getShipper } from "@/lib/api/settings";
 import { useShipper } from "@/lib/hooks/useShipper";
+import { T } from "@/lib/text/common";
 import { HOME } from "@/lib/text/home";
+import type { Shipment } from "@/lib/types/reader";
 
 const U = HOME.upload;
 
 export default function UploadPage() {
-  const { shippers, shipperId, setShipperId, shipperName, error } = useShipper();
+  const { shipperId, shipperName, error: shipperError } = useShipper();
+  const [ships, setShips] = useState<Shipment[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [rowIds, setRowIds] = useState<string[] | null>(null);
-  const [active, setActive] = useState<string | null>(null);
   const [inboxOn, setInboxOn] = useState(false);
   const [inboxMsg, setInboxMsg] = useState("");
-  const [inboxErr, setInboxErr] = useState<unknown>(null);
 
-  // 화주 설정 inbox가 켜져 있을 때만 [드라이브 접수 폴더에서 가져오기]를 보인다
+  const load = useCallback(() => {
+    if (!shipperId) return;
+    setError(null);
+    getShipments(shipperId).then(setShips).catch(setError);
+  }, [shipperId]);
+
+  useEffect(() => {
+    setShips(null);
+    load();
+  }, [load]);
+
+  // 화주 설정 inbox가 켜져 있을 때만 [드라이브 접수 폴더에서 가져오기]
   useEffect(() => {
     if (!shipperId) return;
     getShipper(shipperId)
@@ -38,66 +51,67 @@ export default function UploadPage() {
   const scan = async () => {
     setBusy(true);
     setInboxMsg("");
-    setInboxErr(null);
     try {
       const out = await scanInbox(shipperId);
-      if (!out.ok) setInboxMsg(out.reason);
-      else {
-        setInboxMsg(U.inboxDone(out.imported.length));
-        if (out.imported.length) setRowIds([]);
-      }
+      setInboxMsg(out.ok ? U.inboxDone(out.imported.length) : out.reason);
+      load();
     } catch (e) {
-      setInboxErr(e);
+      setError(e);
     } finally {
       setBusy(false);
     }
   };
 
+  const missing = ships?.filter((s) => s.missing.length).length ?? 0;
+
   return (
     <div>
-      <PageHeader title={U.title} sub={U.sub} actions={<ShipperSelect shippers={shippers} value={shipperId} onChange={setShipperId} />} />
-      {error !== null && <ErrorLine error={error} />}
-      <Card>
-        <ol style={{ margin: `0 0 ${space.md}px`, paddingLeft: space.lg, fontSize: font.md }}>
-          {U.steps.map((s) => (
-            <li key={s} style={{ marginBottom: space.xs }}>
-              {s}
-            </li>
-          ))}
-        </ol>
-        <Button variant="primary" disabled={!shipperId || busy} onClick={() => setOpen(true)}>
-          {busy ? "판독 중…" : HOME.buttons.upload}
-        </Button>
-        {inboxOn && (
-          <>
-            <Button style={{ marginLeft: space.sm }} disabled={!shipperId || busy} onClick={scan}>
+      <ListHeader title={T.side.list.upload} onChanged={() => load()} />
+      <p style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{U.sub}</p>
+      {(shipperError ?? error) !== null && <ErrorLine error={shipperError ?? error} onRetry={load} />}
+
+      {inboxOn && (
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", gap: space.md, flexWrap: "wrap" }}>
+            <button type="button" style={pillSecondary} disabled={!shipperId || busy} onClick={scan}>
               {busy ? U.inboxBusy : U.inbox}
-            </Button>
-            <p style={{ fontSize: font.sm, margin: `${space.sm}px 0 0` }}>{U.inboxHint}</p>
-          </>
-        )}
-        {inboxMsg && <Notice tone="warn">{inboxMsg}</Notice>}
-        {inboxErr !== null && <ErrorLine error={inboxErr} />}
-      </Card>
-      {rowIds && (
-        <Notice>
-          {U.done(rowIds.length)} · <Link href="/history/">{U.goTable}</Link>
-        </Notice>
+            </button>
+            <span style={{ fontSize: font.sm, color: colors.muted }}>{U.inboxHint}</span>
+          </div>
+          {inboxMsg && <Notice tone="warn">{inboxMsg}</Notice>}
+        </Card>
       )}
+
+      {ships === null && error === null && <Skeleton lines={4} />}
+      {ships && ships.length === 0 && (
+        <Card>
+          <EmptyState
+            text={U.emptyShipments}
+            action={
+              <button type="button" style={pillPrimary} onClick={() => setOpen(true)} disabled={!shipperId}>
+                ⇪ {HOME.buttons.upload}
+              </button>
+            }
+          />
+        </Card>
+      )}
+      {ships && ships.length > 0 && (
+        <>
+          <div style={{ fontSize: font.md, margin: `${space.xs}px 0 ${space.sm}px` }}>
+            {U.shipmentCount(ships.length, missing)}
+          </div>
+          <ShipmentCards shipments={ships} />
+        </>
+      )}
+
       {open && (
         <UploadDialog
           shipperId={shipperId}
           shipperName={shipperName}
           onClose={() => setOpen(false)}
-          onStart={() => setBusy(true)}
-          onEnd={() => setBusy(false)}
-          onUploaded={(ids) => {
-            setRowIds(ids);
-            if (ids[0]) setActive(ids[0]);
-          }}
+          onUploaded={() => load()}
         />
       )}
-      {active && <ReviewPanel rowId={active} onConfirmed={() => undefined} onClose={() => setActive(null)} />}
     </div>
   );
 }

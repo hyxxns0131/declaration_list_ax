@@ -42,7 +42,8 @@ HEAD_LABELS: list[tuple[str, tuple[str, ...]]] = [
 LINE_HEADERS: list[tuple[str, tuple[str, ...]]] = [
     ("model", ("model", "modelno", "itemno", "style", "모델")),
     ("description", ("description", "descriptionofgoods", "commodity", "품명")),
-    ("qty_per_carton", ("qtyctn", "pcsctn", "qtycarton", "입수")),
+    ("qty_per_carton", ("qtyctn", "pcsctn", "qtycarton", "unitsctn", "카톤당", "입수")),
+    ("quantity", ("quantity", "qty", "pcs", "totalqty", "수량")),  # 전체 개수(PCS 합계)
     ("cartons", ("ctns", "ctn", "cartons", "카톤")),
     ("net_kg", ("nw", "netweight", "순중량")),
     ("gross_kg", ("gw", "grossweight", "총중량")),
@@ -87,13 +88,56 @@ def _match(cell_norm: str, keys: tuple[str, ...]) -> bool:
     return any(cell_norm == k or cell_norm.startswith(k) for k in keys)
 
 
+# 값 자리에 다른 라벨이 붙어 있는 경우(B/L 머리 줄 "Vessel & Voyage: Port of loading: Sailing Date:")를
+# 값으로 읽지 않으려고 쓰는 라벨 낱말 (HS 요청 11/26: 모선명에 라벨 글자가 들어간 문제)
+_LABEL_WORDS = (
+    "portofloading",
+    "portofdischarge",
+    "placeofreceipt",
+    "placeofdelivery",
+    "finaldestination",
+    "sailingdate",
+    "onboarddate",
+    "voyageno",
+    "vesselvoyage",
+    "vessel",
+    "shipper",
+    "consignee",
+    "notifyparty",
+    "blno",
+)
+
+
+def looks_like_label(value: object) -> bool:
+    """값이 아니라 라벨처럼 보이면 True: 'A: B: C:'처럼 라벨만 이어지거나 라벨 낱말로 시작하고 숫자가 없을 때."""
+    if isinstance(value, datetime | date):
+        return False
+    s = str(value or "").strip()
+    if not s:
+        return True
+    if re.fullmatch(r"(?:[^:]{1,40}:\s*)+", s):
+        return True
+    n = norm(s)
+    return not re.search(r"\d", s) and any(n.startswith(w) for w in _LABEL_WORDS)
+
+
+def _first_line(value: object) -> str:
+    """여러 줄 칸(PDF 표)은 첫 줄만 값으로 본다."""
+    return next((ln.strip() for ln in str(value).splitlines() if ln.strip()), "")
+
+
 def _value_right(row: list[object], i: int) -> str:
     cell = str(row[i] or "")
     if ":" in cell and cell.split(":", 1)[1].strip():
-        return cell.split(":", 1)[1].strip()
+        v = _first_line(cell.split(":", 1)[1])
+        return "" if looks_like_label(v) else v
     for c in row[i + 1 :]:
         if c is not None and str(c).strip():
-            return c if isinstance(c, datetime | date) else str(c).strip()  # type: ignore[return-value]
+            if isinstance(c, datetime | date):
+                return c  # type: ignore[return-value]
+            v = _first_line(c)
+            # 바로 옆(또는 그 첫 줄)이 다른 라벨이면 값이 없는 것 → 비워 두고 '확인 필요'
+            return "" if looks_like_label(v) else v
     return ""
 
 
@@ -167,6 +211,7 @@ def parse_grid(grid: Grid) -> GridResult:
                 model=model,
                 description=desc,
                 qty_per_carton=to_float(_cell(row, cols, "qty_per_carton")),
+                quantity=to_float(_cell(row, cols, "quantity")),
                 cartons=to_float(_cell(row, cols, "cartons")),
                 net_kg=to_float(_cell(row, cols, "net_kg")),
                 amount=to_float(_cell(row, cols, "amount")),

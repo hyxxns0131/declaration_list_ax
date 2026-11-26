@@ -1,17 +1,15 @@
-// 탭 5. 연결 설정 문구 (전체 연결 · AI 모델). 담당: KHS (HS 요청 11/25)
+// 탭 6. 연결 설정 문구 (전체 연결 · AI 모델). AI는 OpenAI만(HS 결정 11/26). 담당: KHS
 export const CONN = {
   title: "전체 연결",
   sub: "AI와 외부 API가 제대로 연결됐는지 보고, [연결 검사]로 다시 확인합니다. 키 값은 화면에 보이지 않습니다.",
   checkAll: "전체 연결 검사",
   checkAi: "AI 연결 검사",
-  aiCards: "OpenAI · Claude",
+  aiCards: "OpenAI",
   check: "연결 검사",
   checking: "검사 중…",
   aiTitle: "AI 모델",
   aiSub:
-    "서류 판독(스캔 PDF·사진)과 AI 판단 보조에 쓸 AI와 모델을 고릅니다. 낮은 모델은 비용(토큰)이 적고, 높은 모델은 정확도가 높습니다.",
-  useThis: "이 AI 사용",
-  inUse: "사용 중",
+    "서류 판독(스캔 PDF·사진)과 AI 판단 보조에 쓸 OpenAI 모델(버전)을 고릅니다. 낮은 모델은 비용(토큰)이 적고, 높은 모델은 정확도가 높습니다.",
   model: "모델",
   version: "버전(모델)",
   nowUsing: "지금 사용",
@@ -24,9 +22,12 @@ export const CONN = {
   noAccountList: "키를 넣고 [연결 검사]를 누르면 이 계정에서 쓸 수 있는 전체 버전이 나옵니다",
   appliesAll: "고른 버전은 모든 AI 판독에 쓰입니다.",
   modelSaved: (m: string) => `모델을 '${m}'(으)로 바꿨습니다. 다음 판독부터 적용됩니다.`,
-  providerSaved: (p: string) => `이제 ${p}를 사용합니다.`,
+  onlyOpenai: "AI는 OpenAI만 사용합니다 (키: .env의 OPENAI_API_KEY)",
   notAvailable: "이 계정에서 못 씀",
   llmOff: "LLM_ENABLED=false라서 AI를 부르지 않습니다(규칙만으로 판독).",
+  maskOk: (n: number, s: number) => `화주명 가리기 목록: 있음 (화주 ${s}곳 · 이름 ${n}개, 이 PC 안에만) — AI로 보내기 전에 가립니다`,
+  maskMissing: (why: string) =>
+    `화주명 가리기 목록: 없음 — AI로 서류를 보내지 않습니다. DB에서 자동으로 만들고 있으니 잠시 뒤 새로고침하세요${why ? ` (마지막 시도: ${why})` : ""}`,
   tableTitle: "외부 연결 (AI 포함)",
   cols: { name: "연결", uses: "어디에 쓰나", state: "상태", detail: "내용", checkedAt: "마지막 검사" },
   state: {
