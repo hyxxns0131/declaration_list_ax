@@ -70,7 +70,9 @@ export interface ConnRow {
 }
 
 export interface Connections {
-  provider: "openai" | "claude";
+  provider: "openai"; // AI는 OpenAI만 (HS 결정 11/26)
   llm_enabled: boolean;
   rows: ConnRow[];
+  /** 화주명 가리기 목록(PC 전용 파일): 있음/없음·개수만 (HS 결정 11/26) */
+  mask_names?: { exists: boolean; count: number; shippers: number; last_error: string };
 }

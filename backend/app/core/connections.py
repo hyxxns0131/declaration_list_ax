@@ -1,7 +1,7 @@
-"""외부 연결 상태와 [연결 검사]. 화면: 탭 5. 연결 설정. 담당: KHS [신규] (C-1 공통, HS 요청 11/25)
+"""외부 연결 상태와 [연결 검사]. 화면: 탭 6. 연결 설정. 담당: KHS [신규] (C-1 공통, HS 요청 11/25)
 
 - status(): 네트워크 없이 키가 .env에 있는지만 본다 + 마지막 검사 결과(data/connection_checks.json).
-- check(key): 실제로 한 번 접속해 본다. AI는 모델 목록만 받으므로 토큰을 쓰지 않는다.
+- check(key): 실제로 한 번 접속해 본다. AI(OpenAI만, HS 결정 11/26)는 모델 목록만 받으므로 토큰을 쓰지 않는다.
 - 키·토큰 값은 응답·로그·파일 어디에도 남기지 않는다. 오류 글도 종류만 남긴다.
 """
 
@@ -25,7 +25,6 @@ TIMEOUT = 15.0
 # (key, 이름, 어디에 쓰나). 화면 순서 그대로
 SERVICES: list[tuple[str, str, str]] = [
     ("openai", "OpenAI (GPT)", "서류 판독(스캔 PDF·사진), AI 재질 판단 보조"),
-    ("claude", "Claude (Anthropic)", "서류 판독, AI 재질 판단 보조 (OpenAI 대신 쓸 때)"),
     ("unipass", "관세청 유니패스", "반입 상태·반입일, 관세환율(USD 가격 계산)"),
     ("mfds", "식약처 공공데이터", "해외제조업소 코드·수입신고 접수 업체 조회"),
     ("foodsafety", "식품안전나라", "기구·용기·포장 공전 자료"),
@@ -62,10 +61,9 @@ def _save_result(key: str, result: dict) -> None:
 
 def configured(key: str) -> tuple[bool, str]:
     s = get_settings()
-    if key in ("openai", "claude"):
-        env = "OPENAI_API_KEY" if key == "openai" else "ANTHROPIC_API_KEY"
-        if not llm.api_key(key):
-            return False, f"{env} 없음 (.env에 넣고 백엔드를 다시 켜세요)"
+    if key == "openai":  # AI는 OpenAI만 (HS 결정 11/26)
+        if not llm.api_key():
+            return False, "OPENAI_API_KEY 없음 (.env에 넣고 백엔드를 다시 켜세요)"
         if not s.llm_enabled:
             return False, "LLM_ENABLED=false (AI 꺼짐)"
         return True, ""
@@ -104,16 +102,6 @@ def _openai_models() -> list[str]:
     return [m.id for m in models]  # 최신 버전이 먼저
 
 
-def _claude_models() -> list[str]:
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=llm.api_key("claude"), timeout=TIMEOUT, max_retries=0)
-    models = sorted(
-        client.models.list(limit=100), key=lambda m: str(getattr(m, "created_at", "")), reverse=True
-    )
-    return [m.id for m in models]  # 최신 버전이 먼저
-
-
 def _ai_error(e: Exception) -> str:
     name = type(e).__name__
     if "Authentication" in name or "PermissionDenied" in name:
@@ -127,7 +115,7 @@ def _ai_error(e: Exception) -> str:
 
 def _check_ai(key: str) -> tuple[bool, str, dict]:
     try:
-        ids = _openai_models() if key == "openai" else _claude_models()
+        ids = _openai_models()
     except Exception as e:  # SDK 오류 종류가 많다 — 종류 이름만 남긴다
         return False, _ai_error(e), {}
     model = llm.current_model(key)
@@ -255,7 +243,6 @@ def _check_gmail() -> tuple[bool, str, dict]:
 
 LIVE: dict[str, Callable[[], tuple[bool, str, dict]]] = {
     "openai": lambda: _check_ai("openai"),
-    "claude": lambda: _check_ai("claude"),
     "unipass": _check_unipass,
     "mfds": _check_mfds,
     "foodsafety": _check_foodsafety,
@@ -315,9 +302,7 @@ _NOT_CHAT = (
 def _chat_model(key: str, mid: str) -> bool:
     if any(w in mid for w in _NOT_CHAT):
         return False
-    if key == "openai":
-        return mid.startswith(("gpt-", "o1", "o3", "o4", "chatgpt-"))
-    return mid.startswith("claude-")
+    return mid.startswith(("gpt-", "o1", "o3", "o4", "chatgpt-"))
 
 
 def _ai_block(key: str, last: dict) -> dict:
@@ -344,7 +329,7 @@ def _ai_block(key: str, last: dict) -> dict:
     if current not in listed:
         options.append({"id": current, "tier": "직접 입력", "group": "custom", "available": None})
     return {
-        "in_use": llm.current_provider() == key,
+        "in_use": True,  # OpenAI 하나뿐
         "model": current,
         "models": options,
         "account_list": bool(fetched),
@@ -368,11 +353,32 @@ def status() -> dict:
             }
             or None,
         }
-        if key in ("openai", "claude"):
+        if key == "openai":
             row["ai"] = _ai_block(key, last)
         rows.append(row)
+    from app.core.mask_names import status as mask_status
+
+    m = mask_status()  # 화주명 목록: 있음/없음·개수만(이름은 내보내지 않는다)
     return {
         "provider": llm.current_provider(),
         "llm_enabled": get_settings().llm_enabled,
         "rows": rows,
+        "mask_names": {
+            "exists": m["exists"],
+            "count": m["count"],
+            "shippers": m["shippers"],
+            "last_error": m["last_error"],
+        },
     }
+
+
+# 서버가 뜰 때(core 라우터가 이 모듈을 불러올 때) 화주명 목록이 없으면 DB에서 뒤에서 만든다.
+# HS 결정 11/26 "DB에 있으니 끌고 오면 된다". 실패해도 서버는 뜨고, AI 전송은 막힌 채로 둔다.
+# (main.py·core/router.py는 다른 브랜치와 겹치지 않게 건드리지 않는다)
+def _start_mask_names() -> None:
+    from app.core.mask_names import ensure_in_background
+
+    ensure_in_background()
+
+
+_start_mask_names()
