@@ -140,7 +140,7 @@ def choose_record(
             out.precise_needed, out.need_check = True, True
             out.note = " / ".join(notes) + " → 같은 재질 구분의 유효한 실적 없음 → 정밀검사 대상"
             _mark(out)
-        return out
+            return out
         pool = kept
 
     if not pool:
@@ -181,7 +181,7 @@ def choose_record(
             out.precise_needed, out.need_check = True, True
             out.note = f"{best.record_no}실적과 현품({color})의 색상이 달라 추가 정밀검사 필요"
             _mark(out)
-        return out
+            return out
 
     out.record_no = best.record_no
     out.value = format_record_cell(best.record_no, best.approved_on)
