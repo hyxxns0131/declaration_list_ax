@@ -4,14 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CellEditor } from "@/components/home/CellEditor";
 import { HistoryTable } from "@/components/home/HistoryTable";
-import { SummaryStrip } from "@/components/home/SummaryStrip";
 import { TopBar, type HomeFilter } from "@/components/home/TopBar";
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
 import { JudgeEvidence } from "@/components/judge/JudgeEvidence";
 import { UploadDialog } from "@/components/reader/UploadDialog";
 import { ReviewPanel } from "@/components/review/ReviewPanel";
 import { Button } from "@/components/ui/Button";
-import { Card, PageHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
 import { integrations, shippers as getShippers } from "@/lib/api/core";
@@ -23,6 +21,9 @@ import type { Integrations, Shipper } from "@/lib/types/core";
 import type { Badges, Columns, Declaration, HistoryRow } from "@/lib/types/history";
 import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
 
+
+/** 표 높이: 화면 높이에서 위 탭 줄·여백·도구 줄을 뺀 나머지(1366×768에서 약 15행 이상) */
+const TABLE_HEIGHT = "calc(100vh - 230px)";
 
 export default function HistoryPage() {
   const [shippers, setShippers] = useState<Shipper[]>([]);
@@ -101,6 +102,7 @@ export default function HistoryPage() {
         (r) => r.status !== "승인" && Object.values(r.cells).some((c) => (r.confirmed ? c.flag === "need_input" : ["mismatch", "need_check", "need_input"].includes(c.flag))),
       );
     }
+    if (filter === "ready") return rows.filter((r) => r.status === "신청 전");
     if (filter === "progress") {
       const ids = new Set(decls.flatMap((d) => d.row_ids));
       return rows.filter((r) => ids.has(r.row_id));
@@ -139,13 +141,10 @@ export default function HistoryPage() {
 
   return (
     <div>
-      <PageHeader title={HOME.title} sub={HOME.sub} />
-      <SummaryStrip shipperId={shipperId} badges={badges} />
-      <Card>
+      {/* 메인 화면 = 표 중심(제안서 가이드라인 ④): 얇은 도구 줄 + 화면 높이를 채우는 표. 큰 제목·숫자 카드 없음 */}
       <TopBar
-        shippers={shippers}
         shipperId={shipperId}
-        onShipper={setShipperId}
+        shipperName={shipperName}
         badges={badges}
         filter={filter}
         onFilter={setFilter}
@@ -184,11 +183,16 @@ export default function HistoryPage() {
             </Button>
           </span>
         )}
-        <span style={{ marginLeft: "auto", color: colors.muted }}>{HOME.legend}</span>
+        <span
+          style={{ marginLeft: "auto", color: colors.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
+          title={HOME.legend}
+        >
+          {HOME.legend}
+        </span>
       </div>
 
       {!shipperId && <EmptyState text={T.pickShipper} />}
-      {shipperId && rows === null && error === null && <Skeleton lines={5} />}
+      {shipperId && rows === null && error === null && <Skeleton lines={8} />}
       {rows && rows.length === 0 && (
         <EmptyState
           text={HOME.emptyRows}
@@ -206,6 +210,7 @@ export default function HistoryPage() {
           declarations={decls}
           selected={selected}
           activeRowId={active}
+          maxHeight={TABLE_HEIGHT}
           onSelect={(id, on) => {
             const next = new Set(selected);
             if (on) next.add(id);
@@ -219,9 +224,32 @@ export default function HistoryPage() {
           onMove={onMove}
         />
       )}
-      </Card>
 
-      {active && <ReviewPanel rowId={active} onConfirmed={() => load()} onClose={() => setActive(null)} />}
+      {active && (
+        // 검수 패널은 오른쪽 서랍: 표를 가리지 않고 넓게 두기 위해 (로직 점검 반영 11/25)
+        <aside
+          aria-label={HOME.review.title}
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: "min(560px, 92vw)",
+            background: colors.bg,
+            boxShadow: "-12px 0 32px rgba(15, 23, 42, 0.18)",
+            zIndex: 20,
+            overflowY: "auto",
+            padding: `${space.sm}px ${space.lg}px ${space.lg}px`,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button small variant="ghost" onClick={() => setActive(null)} aria-label={HOME.closePanel}>
+              ✕ {T.close}
+            </Button>
+          </div>
+          <ReviewPanel rowId={active} onConfirmed={() => load()} onClose={() => setActive(null)} />
+        </aside>
+      )}
 
       {uploadOpen && (
         <UploadDialog

@@ -33,9 +33,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
+    // 고른 적이 있으면 그대로. 처음이면 넓은 화면만 열되, 메인 화면(검역이력 표)에서는 표 폭을 위해 접는다
     const saved = window.localStorage.getItem(SIDEBAR_KEY);
-    setOpen(saved === null ? window.innerWidth >= 1024 : saved === "1");
-  }, []);
+    setOpen(saved === null ? window.innerWidth >= 1024 && !pathname.startsWith(MAIN_PATH) : saved === "1");
+  }, [pathname]);
 
   const toggle = () => {
     setOpen((v) => {
@@ -281,7 +282,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </div>
             </div>
           </aside>
-          <main style={{ padding: `${space.xl - 8}px clamp(${space.md}px, 2.4vw, ${space.xl}px)`, flex: 1, minWidth: 0 }}>
+          <main
+            style={{
+              // 메인 화면(표)은 위 여백을 줄여 행을 더 보이게
+              padding: pathname.startsWith(MAIN_PATH)
+                ? `${space.sm + 4}px clamp(${space.md}px, 1.6vw, ${space.lg}px)`
+                : `${space.xl - 8}px clamp(${space.md}px, 2.4vw, ${space.xl}px)`,
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
             <ShipperGate pathname={pathname}>{children}</ShipperGate>
           </main>
         </div>
