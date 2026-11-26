@@ -33,9 +33,7 @@ class Settings(BaseSettings):
 
     # 2. AI (core/llm.py)
     llm_enabled: bool = True
-    ai_provider: str = "claude"  # claude | openai
-    anthropic_api_key: str = ""
-    claude_model: str = ""
+    # AI는 OpenAI만 쓴다(HS 결정 11/26). 예전 .env의 AI_PROVIDER·ANTHROPIC_API_KEY·CLAUDE_MODEL 줄은 무시된다(extra="ignore")
     openai_api_key: str = ""
     openai_model: str = ""
     mask_shipper_names: bool = True
@@ -59,7 +57,7 @@ class Settings(BaseSettings):
     mfds_import_rcpt_entp_api_key: str = ""
     mfds_material_code_api_key: str = ""
 
-    # 5-1. 기타 공공 API (연결 상태 화면에서 검사만. 탭 5. 연결 설정)
+    # 5-1. 기타 공공 API (연결 상태 화면에서 검사만. 탭 6. 연결 설정)
     law_api_oc: str = ""  # 법제처 OPEN API (등록한 공인 IP에서만 동작)
     foodsafety_api_key: str = ""  # 식품안전나라
 
