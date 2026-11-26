@@ -3,7 +3,7 @@
 import re
 
 MAKER_RE = re.compile(r"^(?P<name>.*?)\s*\((?P<code>[A-Za-z0-9\-]+)\)\s*$")
-PAREN_RE = re.compile(r"\(([^()]+)\)\s*$")
+PAREN_RE = re.compile(r"\(([^()]+)\)")
 ANY_PAREN_RE = re.compile(r"\([^()]*\)")
 PART_SUFFIX = ("부분품", "부속품")
 
@@ -28,9 +28,13 @@ def norm_company(name: str) -> str:
 
 
 def model_from_name(name: str) -> str:
-    """'RICE COOKER(RC-100)' → 'RC-100'. 괄호가 없으면 ''."""
-    m = PAREN_RE.search((name or "").strip())
-    return m.group(1).strip().upper() if m else ""
+    """'RICE COOKER(RC-100)' → 'RC-100'. 괄호가 없으면 ''.
+
+    괄호 뒤에 글자가 더 붙어도 찾는다('RICE COOKER(RC-100) SPARE PARTS', '… 정밀검사' → 'RC-100').
+    괄호가 여러 개면 마지막 괄호(지금 서류에는 1개뿐 — 11/26 확인).
+    """
+    found = PAREN_RE.findall(name or "")
+    return found[-1].strip().upper() if found else ""
 
 
 def product_base(name_ko: str) -> str:
