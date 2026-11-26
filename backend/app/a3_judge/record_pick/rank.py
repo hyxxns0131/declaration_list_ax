@@ -25,6 +25,7 @@ class RecordChoice(BaseModel):
     need_check: bool = False
     precise_needed: bool = False  # 정밀검사 대상
     candidates: list[dict] = PField(default_factory=list)  # 화면 후보(만료 포함, 만료는 취소선)
+    basis_date: str = ""  # 유효기간을 비교한 기준일(신고일, 없으면 오늘) — 화면에 "○월 ○일 기준"
 
 
 def _color_ok(rec: Record, color: str) -> bool | None:
@@ -35,6 +36,38 @@ def _color_ok(rec: Record, color: str) -> bool | None:
     if not colors:
         return None
     return color.strip() in colors
+
+
+def _reason(
+    checks: dict[str, bool], materials: list[str], rec: Record, approved: date | None, on: date
+) -> str:
+    """빠진 검사를 사람이 읽을 이유로. 모두 통과하면 빈 글자."""
+    out: list[str] = []
+    if not checks["공장"]:
+        out.append("다른 공장(업소코드·주소 모두 다름)")
+    if not checks["품명"]:
+        out.append("다른 품명")
+    if not checks["재질"]:
+        missing = sorted(set(materials) - set(rec.materials))
+        out.append(f"재질 부족: {', '.join(missing)} 없음" if missing else "재질이 정해지지 않음")
+    if not checks["재질 구분"]:
+        out.append(f"재질 구분 다름({rec.spec_class})")
+    if not checks["기간"]:
+        out.append(
+            f"만료 ({expires_on(approved):%Y.%m.%d}) (기준일 {on:%Y.%m.%d})"
+            if approved
+            else "승인일 없음"
+        )
+    return " / ".join(out)
+
+
+def _mark(out: RecordChoice) -> None:
+    """고른 실적은 '선택', 검사에 빠진 실적은 '제외', 나머지(쓸 수 있지만 덜 포괄적)는 '후보'."""
+    for c in out.candidates:
+        if out.record_no and c["record_no"] == out.record_no:
+            c["status"], c["reason"] = "선택", "재질을 가장 많이 포함 (같으면 최신 승인일)"
+        elif c["reason"]:
+            c["status"] = "제외"
 
 
 def choose_record(
@@ -49,13 +82,23 @@ def choose_record(
     color: str = "",
     color_check: bool = False,
 ) -> RecordChoice:
-    out = RecordChoice()
+    out = RecordChoice(basis_date=on.isoformat())
     pool: list[tuple[Record, str]] = []
     for r in records:
         how = factory_match(r, factory_code, factory_address)
         approved = to_date(r.approved_on)
         expired = bool(approved and is_expired(approved, on))
-        fits = bool(how) and covers_materials(materials, r) and covers_product(name_ko, r)
+        mats_ok = covers_materials(materials, r)
+        name_ok = covers_product(name_ko, r)
+        fits = bool(how) and mats_ok and name_ok
+        spec_ok = not (same_spec and spec and r.spec_class and r.spec_class != spec)
+        checks = {
+            "공장": bool(how),
+            "품명": name_ok,
+            "재질": mats_ok,
+            "재질 구분": spec_ok,
+            "기간": bool(approved) and not expired,
+        }
         out.candidates.append(
             {
                 "record_no": r.record_no,
@@ -66,6 +109,11 @@ def choose_record(
                 "expires_on": expires_on(approved).isoformat() if approved else None,
                 "expired": expired,
                 "fits": fits,
+                # 근거 패널용: 검사별 통과 여부·빠진 재질·제외 이유 (11/26 [개선])
+                "checks": checks,
+                "missing_materials": sorted(set(materials) - set(r.materials)),
+                "status": "후보",
+                "reason": _reason(checks, materials, r, approved, on),
             }
         )
         if fits and not expired and approved:
@@ -73,9 +121,11 @@ def choose_record(
 
     if not materials:
         out.need_check, out.note = True, "재질이 정해지지 않아 실적을 고르지 않음"
+        _mark(out)
         return out
     if not factory_code and not factory_address:
         out.need_check, out.note = True, "해외제조업소가 정해지지 않아 실적을 고르지 않음"
+        _mark(out)
         return out
 
     notes: list[str] = []
@@ -89,6 +139,7 @@ def choose_record(
         if pool and not kept:
             out.precise_needed, out.need_check = True, True
             out.note = " / ".join(notes) + " → 같은 재질 구분의 유효한 실적 없음 → 정밀검사 대상"
+            _mark(out)
             return out
         pool = kept
 
@@ -104,6 +155,7 @@ def choose_record(
         else:
             who = factory_code or "주소 기준"
             out.note = f"이 공장({who})에서 이 재질을 모두 포함하는 유효한 정밀검사 실적 없음 → 정밀검사 대상"
+        _mark(out)
         return out
 
     ordered = sorted(
@@ -128,10 +180,12 @@ def choose_record(
         else:
             out.precise_needed, out.need_check = True, True
             out.note = f"{best.record_no}실적과 현품({color})의 색상이 달라 추가 정밀검사 필요"
+            _mark(out)
             return out
 
     out.record_no = best.record_no
     out.value = format_record_cell(best.record_no, best.approved_on)
+    _mark(out)
     head = f"모델 재질을 모두 포함하는 가장 포괄적인 실적 ({best.record_no}, 재질 {len(best.materials)}개)"
     if how == "주소":
         notes.append("해외제조업소 코드는 다르지만 주소가 같아 같은 공장으로 봄 - 코드 갱신 추정")
