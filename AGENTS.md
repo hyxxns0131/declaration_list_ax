@@ -20,7 +20,7 @@
   로그인 → 홈·검수 패널·품목사항·실적·설정    (core/auth 토큰 확인)  ├─▶  로컬 SQLite (작업 데이터·캐시)
                                                                   ├─▶  Supabase (공개 정보 + 고객사 자료, 읽기만)
                                                                   ├─▶  유니패스 API (mock → live)
-                                                                  └─▶  LLM (Claude / GPT, core/llm.py 한 곳)
+                                                                  └─▶  LLM (OpenAI, core/llm.py 한 곳)
 ```
 최종 산출물은 Windows exe다. exe 변환은 개발을 마친 뒤 마지막에 한 번에 한다(10장).
 
@@ -51,7 +51,7 @@
 ### 0-2. 구조
 - 화면(Next.js)은 **정적 export만** 쓴다. API Routes, Server Actions, SSR(`getServerSideProps`, 서버 컴포넌트에서 데이터 가져오기), middleware를 쓰지 않는다. `next.config`의 `output: 'export'`를 지운다면 그것은 버그다.
 - 모든 처리 로직은 FastAPI(`backend/app/`)에 둔다. 화면은 `frontend/lib/api/`의 함수로 API만 부른다.
-- 화면은 홈(전체 현황) + 제안서 가이드라인 1~4번 탭 4개 + 5 연결 설정(가이드라인 밖, KHS, HS 요청 11/25) = 탭 5개, 탭 하나를 한 사람이 맡는다. 탭 순서는 1 기업 설정 → 2 서류 등록·만료 알림 → 3 검역 리스트 → 4 재질·실적 판단 → 5 연결 설정(탭 순서 변경: 로직 점검 반영 11/25 — 데이터 흐름 순서: 설정 → 실적 등록 → 검역이력 → 판단. 처음 1~4는 HS 요청 11/25 21시). 로그인 뒤 메인 화면은 검역이력 표(`/history`, 제안서 가이드라인 ④)이고, 홈은 전체 현황으로 남긴다. 작업 화주는 탭 1 첫 화면에서 고르고 모든 탭이 같이 쓴다. 탭마다 왼쪽 사이드바에 세부 화면 2~3개를 두고, 한 화면에 몰아 넣지 않는다. 탭·사이드바 목록은 `frontend/lib/nav.ts` 한 곳에서 정한다. 탭 페이지는 데이터를 만들지 않고 각 담당 API와 부품을 불러 쓴다.
+- 화면은 홈(전체 현황) + 제안서 가이드라인 1~4번 탭 4개 + 5 품목사항 엑셀(LSY, HS 요청 11/26) + 6 연결 설정(가이드라인 밖, KHS, HS 요청 11/25) = 탭 6개, 탭 하나를 한 사람이 맡는다. 탭 순서는 1 기업 설정 → 2 서류 등록·만료 알림 → 3 검역 리스트 → 4 재질·실적 판단 → 5 품목사항 엑셀 → 6 연결 설정(탭 순서 변경: 로직 점검 반영 11/25 — 데이터 흐름 순서: 설정 → 실적 등록 → 검역이력 → 판단. 처음 1~4는 HS 요청 11/25 21시). 로그인 뒤 메인 화면은 검역이력 표(`/history`, 제안서 가이드라인 ④)이고, 홈은 전체 현황으로 남긴다. 작업 화주는 탭 1 첫 화면에서 고르고 모든 탭이 같이 쓴다. 탭마다 왼쪽 사이드바에 세부 화면 2~3개를 두고, 한 화면에 몰아 넣지 않는다. 탭·사이드바 목록은 `frontend/lib/nav.ts` 한 곳에서 정한다. 탭 페이지는 데이터를 만들지 않고 각 담당 API와 부품을 불러 쓴다.
 - 공통 코드(`backend/app/core/`(schema 포함), `main.py`, `requirements.txt`, `frontend/app/layout.tsx`)는 PM만 고친다. 필요하면 PR 설명에 변경 요청을 쓴다.
 
 ### 0-3. 화주명 비공개 (가장 중요)
@@ -140,7 +140,7 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 
 **P0 연결 순서:** C-4(로그인) → A0-1 → A1-1 → A1-2 → A3-1(이력만) → A3-4 → A3-5, 화면은 H-1에서 표 보기 + "품목사항 만들기" 버튼까지.
 
-**화면: 홈 + 탭 5개 (1인 1탭, 팀 결정 11/25 · 사이드바·대시보드: HS 요청 11/25 · 탭 순서 변경: 로직 점검 반영 11/25):**
+**화면: 홈 + 탭 6개 (HS 요청 11/26: 5 품목사항 엑셀 추가 · 1인 1탭, 팀 결정 11/25 · 사이드바·대시보드: HS 요청 11/25 · 탭 순서 변경: 로직 점검 반영 11/25):**
 
 | 순서 | 탭 | 경로 | 사이드바 메뉴(세부 화면) | 제안서 가이드라인 | 담당 |
 |---|---|---|---|---|---|
@@ -148,8 +148,9 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 | 1 | 1. 기업 설정 | `/settings` | 화주 선택·관리 `/settings`(작업 화주 고르기·추가·삭제, 기본 A·B 삭제 불가) · 규칙 설정 `/settings/rules` | 4. 기업 설정(규칙 표준화) | JUJ (화주 선택 화면 배치 KHS) |
 | 2 | 2. 서류 등록·만료 알림 | `/registry` | 실적 현황 `/registry` · 해외제조업소 코드 `/registry/factories` · 만료 알림 `/registry/alerts` | 2. [기구·용기] 수입신고서·검사성적서 등록 및 만료 알림(실적·해외제조업소 코드) | YHS |
 | 3 | 3. 검역 리스트 | `/history` | 검역이력 표 `/history` · 확인 필요 `/history/review` · 서류 올리기 `/history/upload` | 1. [기구·용기] 검역 리스트 자동 작성 (서류 판독→검역이력 행, 자료 추가 필요, 서류 대조, 검수 패널, 버튼 4개) | KHS |
-| 4 | 4. 재질·실적 판단 | `/judge` | 신고건 묶음 `/judge` · 판단 근거 `/judge/evidence` · 품목사항 엑셀 `/judge/item-sheet` | 3. 재질·실적 판단 및 신고 묶음 | LSY |
-| 5 | 5. 연결 설정 | `/connections` | 전체 연결 `/connections` · AI 모델 `/connections/ai` | (가이드라인 밖, HS 요청 11/25) | KHS |
+| 4 | 4. 재질·실적 판단 | `/judge` | 신고건 묶음 `/judge` · 판단 근거 `/judge/evidence` | 3. 재질·실적 판단 및 신고 묶음 | LSY |
+| 5 | 5. 품목사항 엑셀 | `/item-sheet` | 품목사항 내려받기 `/item-sheet`(신고건별 · 전체 ZIP · 같은 품목끼리 ZIP) | 3. 재질·실적 판단 및 신고 묶음(품목사항) — 판단 탭에서 분리, HS 요청 11/26 | LSY (품목사항 로직 `a3_judge/item_sheet`) |
+| 6 | 6. 연결 설정 | `/connections` | 전체 연결 `/connections` · AI 모델 `/connections/ai` | (가이드라인 밖, HS 요청 11/25, 번호 6: HS 요청 11/26) | KHS |
 
 탭 1~4 = 제안서 가이드라인 4·2·1·3번 = 담당 1명씩(탭 순서 변경: 로직 점검 반영 11/25). 메인 화면(로그인 뒤·앱 이름 클릭) = 검역이력 표, 그 위에 한 줄 요약(확인 필요·신청 준비·실적 만료 임박·연결). 탭 5 연결 설정은 가이드라인 밖 공통 화면(KHS, HS 요청 11/25)으로, AI·외부 API 연결 상태와 [연결 검사], AI 모델 고르기를 둔다. 화면 틀은 대시보드 형태: 파란 바탕 위 큰 흰 판, 왼쪽 파란 사이드바(지금 탭의 세부 메뉴, ☰로 접기), 위쪽 탭 줄(홈 + 탭 5개), 연한 카드·숫자 카드(DESIGN 8장). 5·6번(주간 보고서)은 weekly_report 저장소에서 한다.
 
@@ -173,7 +174,7 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 - 지금 지킬 것: 화면에 서버 기능을 쓰지 않는다. 파일 경로는 `core/config.py`의 `DATA_DIR`만 쓴다(설치 위치가 바뀌어도 동작하게).
 
 ### AI 모델 사용 규칙
-- 상용 LLM(Claude, GPT)을 쓴다. `AI_PROVIDER=claude|openai` 하나로 바꾼다. 모델 이름은 `CLAUDE_MODEL`, `OPENAI_MODEL`(비우면 `core/config.py` 기본값).
+- 상용 LLM은 **OpenAI(GPT)만** 쓴다(OpenAI만 사용: HS 결정 11/26). 키는 `.env`의 `OPENAI_API_KEY` 하나이고, Claude(`ANTHROPIC_API_KEY`)·`AI_PROVIDER`·`CLAUDE_MODEL`은 쓰지 않는다(남아 있어도 무시). 모델(버전)은 화면(연결 설정 › AI 모델)에서 고른 값 > `OPENAI_MODEL` > `core/llm.py` 기본값.
 - 기존 도구는 Gemini로 판독하고 Claude로 검증한다. 우리는 Gemini를 쓰지 않는다(팀 결정). 판독 정확도 비교는 열린 질문이다.
 
 ### 기존 도구와 다른 점
@@ -183,7 +184,7 @@ SAMC 기존 도구의 AGENTS.md 1장 규칙을 그대로 이어받는다.
 | 화면 | 구글 시트(신고탭·실적 탭) | Next.js 화면 | 시트 연계 여부는 열린 질문 |
 | 실행 | 사무실 PC 작업 스케줄러(5분·1분·19:30) | FastAPI + 화면의 새로고침 | 주기 작업 범위는 10장 |
 | 화주 규칙 | `CompanyRules` 코드 | `rules/*.json` 설정 | 키 이름은 같게 유지 |
-| AI | Gemini + Claude | Claude 또는 GPT | |
+| AI | Gemini + Claude | OpenAI(GPT)만 | OpenAI만 사용: HS 결정 11/26 |
 
 ---
 
@@ -256,7 +257,8 @@ declaration_list/
 │  │  ├─ registry/             (YHS) 탭 2. 서류 등록·만료 알림: page.tsx(실적 현황) factories/ alerts/
 │  │  ├─ history/              (KHS) 탭 3. 검역 리스트(메인 화면): page.tsx(검역이력 표) review/ upload/
 │  │  ├─ judge/                (LSY) 탭 4. 재질·실적 판단: page.tsx(신고건 묶음) evidence/ item-sheet/
-│  │  └─ connections/          (KHS) 탭 5. 연결 설정: page.tsx(전체 연결) ai/(AI 모델)
+│  │  ├─ item-sheet/           (LSY) 탭 5. 품목사항 엑셀: page.tsx(신고건별·전체·같은 품목끼리, HS 요청 11/26)
+│  │  └─ connections/          (KHS) 탭 6. 연결 설정: page.tsx(전체 연결) ai/(AI 모델)
 │  ├─ components/
 │  │  ├─ ui/                   (공통) 표·배지·버튼·Card(PageHeader·StatCard)·ShipperSelect·tokens.ts
 │  │  ├─ home/                 (KHS) TopBar/ HistoryTable/ CellEditor/
@@ -303,7 +305,7 @@ a3_judge/
 |---|---|---|---|---|
 | **core** (KHS) | `schema/` | C-1 | 공통 모델: `fields.py`(Field·Evidence) `document.py` `history.py`(26칸 열 이름 상수) `declaration.py` `record.py` `shipper.py` | `common/` |
 | | `config.py` `errors.py` | C-1 | 환경 변수, 공통 오류 | |
-| | `llm.py` | C-1 | 유일한 LLM 진입점 `call_structured()`. Claude·GPT는 `AI_PROVIDER`로 바꾼다. **한 파일로 유지**(팀 결정) | `ai_extractor.py` |
+| | `llm.py` | C-1 | 유일한 LLM 진입점 `call_structured()`. OpenAI만 부른다(OpenAI만 사용: HS 결정 11/26). **한 파일로 유지**(팀 결정) | `ai_extractor.py` |
 | | `masking.py` | C-1 | 화주명 가리기 | |
 | | `unipass/` | A1-6 | `client.py` `mock.py` (반입·검사검역내역·관세환율) | `common/unipass_client.py` |
 | | `fx.py` | A1-7 | 관세환율 조회·캐시 | |
@@ -341,8 +343,8 @@ a3_judge/
 | `a*/router.py` (영역) | 같은 영역 기능 추가 | 영역 담당 1명만 수정 |
 | `core/schema/` | 모두 칸을 추가하려 함 | 파일을 모델별로 나눔. 변경은 PR 설명으로 요청 → KHS 반영 |
 | `requirements.txt` `package.json` | 라이브러리 추가 | KHS만 수정([RULES.md 9장](RULES.md#9-의존성-추가-절차)) |
-| `frontend/app/layout.tsx`, `frontend/lib/nav.ts` | 메뉴 추가 | 홈 + 탭 5개 고정(1. 기업 설정 · 2. 서류 등록·만료 알림 · 3. 검역 리스트 · 4. 재질·실적 판단 · 5. 연결 설정 — 탭 순서 변경: 로직 점검 반영 11/25). 사이드바 메뉴 추가는 `lib/nav.ts`에 PM이 반영 |
-| `frontend/app/*/page.tsx` | 탭에 부품 넣기 | 탭 페이지는 그 탭 담당만 수정(홈 KHS, 탭 1 JUJ(첫 화면 화주 선택은 KHS), 탭 2 YHS, 탭 3 KHS, 탭 4 LSY, 탭 5 KHS). 다른 담당은 부품을 만들어 props만 알려 줌([RULES.md 6장](RULES.md#6-탭과-부품의-경계)) |
+| `frontend/app/layout.tsx`, `frontend/lib/nav.ts` | 메뉴 추가 | 홈 + 탭 6개 고정(1. 기업 설정 · 2. 서류 등록·만료 알림 · 3. 검역 리스트 · 4. 재질·실적 판단 · 5. 품목사항 엑셀 · 6. 연결 설정 — HS 요청 11/26 · 탭 순서 변경: 로직 점검 반영 11/25). 사이드바 메뉴 추가는 `lib/nav.ts`에 PM이 반영 |
+| `frontend/app/*/page.tsx` | 탭에 부품 넣기 | 탭 페이지는 그 탭 담당만 수정(홈 KHS, 탭 1 JUJ(첫 화면 화주 선택은 KHS), 탭 2 YHS, 탭 3 KHS, 탭 4 LSY, 탭 5 LSY, 탭 6 KHS). 다른 담당은 부품을 만들어 props만 알려 줌([RULES.md 6장](RULES.md#6-탭과-부품의-경계)) |
 | 화면 문구 | 한 파일에 모두 추가 | `lib/text/<영역>.ts`로 나눔 |
 | `rules/shippers/*.json` | 설정 키 추가 | JUJ만 수정. 다른 담당은 필요한 키를 요청 |
 | `samples/` | 가상 서류 추가 | 화주·B/L 폴더 단위로 추가, 기존 폴더 파일은 만든 사람만 수정 |
@@ -458,6 +460,31 @@ a3_judge/                                  (LSY)
 
 ---
 
+### 4-6. 검역 리스트 탭 1~4단계 (KHS, HS 요청 11/26)
+
+화면은 [DESIGN.md 3-7](DESIGN.md#3-7-검역-리스트-탭-3화면--①-서류-올리기추출--②-서류-대조검수--③-완성된-검역-리스트-khs-hs-요청-1126). 데이터는 3층: `documents`(서류 추출값) → `mismatches`(대조 결과) → `history_rows`(완성된 검역 리스트).
+
+| 단계 | 하는 일 | 파일 | 구분 |
+|---|---|---|---|
+| 1 | 올리기 → 판별(이름 → 제목 → OpenAI) → 추출(openpyxl·xlrd·pdfplumber → 빈 칸만 OpenAI 멀티모달·JSON, 칸마다 출처 `sources`) → B/L로 선적 건 묶기, 빠진 서류 표시(RULES 11-2) | `a0_reader/classify`, `a0_reader/extract`, `a0_reader/shipments.py` | [개선] |
+| 2 | 서류 3종 대조: 코드 비교 OR OpenAI(`crosscheck_docs.v1`) → 한쪽이라도 다르면 불일치. 불일치 칸은 ai_value를 비우고 flag=mismatch(완성 리스트에 자동으로 넣지 않음). 예외: B/L 번호 칸은 행 묶음 키라 값을 두고 표시만 | `a1_history/crosscheck/` | [신규] |
+| 3 | 담당자가 값 고르기 → final_value + 근거 MANUAL, 항목 '해결됨'. 다시 대조해도 final_value·chosen 유지 | `a1_history/review/service.py` | [신규] |
+| 4 | 완성된 검역 리스트: 일치한 값과 사람이 고른 값만. 제조사·재질·재질 구분·실적은 a2_registry·a3_judge 공개 함수로 채움(`a1_history/fill/`) | `a1_history/fill/`, `frontend/components/review/ListTable.tsx` | [개선] |
+
+규칙
+- **CI 금액 TOTAL(시트 칸 = 줄 합)** 대조는 유지한다. 시트에 대응 칸이 없어 ③에는 비고 경고("서류 대조: … 서류끼리 다름")로만 보인다. TOTAL이나 줄 금액이 서류에 없으면 막지 않고 '비어 있음'만 표시한다(HS 결정 11/26).
+- **필수 칸 14개(확정, HS 결정 11/26):** B/L Number · 모선명 · 제조사 · 화물관리번호 · 한글 제품명(모델넘버) · 입수 · 카톤 수 · 순중량 · 가격(USD) · 재질 · 실적접수번호(승인일) · 영문 제품명 · 재질 구분 · 반입일. 정의는 `a1_history/rows/steps.py`의 `REQUIRED_COLUMNS`. 단계 표시줄 ③ "빈 필수 칸 행"이 이 목록을 센다.
+- **수입신고필증 분류(HS 결정 11/26):** 파일 이름에 '수입신고필증'·'신고필증'이 있거나 본문 제목이 '수입신고필증'·'수입신고서'면 `IMPORT_DECL`. 이름 규칙에서 맨 앞에 둔다(이름에 B/L 번호가 섞여도 B/L로 보지 않게).
+- **엑셀 한 파일에 CI·PL 시트가 같이 있을 때(HS 11/26 실제 샘플):** 시트마다 읽어 서류 종류마다 1개씩 만든다(`extract_documents`). 'CI SPARE PARTS'·'SPARE PARTS' 같은 부분품 시트는 그 종류 서류에 합치고 줄을 부분품으로 표시한다. 전에는 첫 시트만 읽어 PL(카톤·순중량)을 놓쳤다.
+- **모선명(HS 결정 11/26 "문서랑 둘이 비교해서 다르면 알려주게"):** 유니패스 모선명을 모선 칸 근거(`UNIPASS`, note "유니패스 모선명: …")에 따로 남기고, 서류(CI·PL·B/L) 모선과 배 이름으로 대조한다(공백·'/' 뒤 항차·'V.' 항차 무시). 다르면 불일치 → ② 검수 패널에 '유니패스' 칸이 서류 옆에 나란히 보이고 담당자가 고른다(`resolve` source `UNIPASS`).
+- **스캔본·사진(HS 결정 11/26 "캡쳐본으로, 화주명 먼저 가리고 png로"):** 페이지를 PNG로 만들고 Windows 기본 OCR(`a0_reader/extract/win_ocr.ps1`, 새 라이브러리 없음)로 낱말 위치를 찾아 화주명(화주 설정 `mask_names`, 회사 형태 글자 뺀 이름도)을 검은 칸으로 덮은 쪽만 OpenAI로 보낸다. 이름을 못 찾은 쪽·가릴 이름이 없는 화주·OCR이 안 되는 PC는 보내지 않고 "화주명을 가리지 못해 AI로 보내지 않음 - 직접 입력"으로 둔다.
+- **입수 = 전체 개수(PCS 합계) (HS 결정 11/26):** 실제 검역이력이 그렇게 쓴다(A기업 57행: 입수 < 카톤 0행, 1개 1카톤 47행, 부분품 9행은 PCS 합계 / B기업은 카톤 칸 없이 입수만). 값은 서류의 수량(PCS·QUANTITY·수량) 칸, 없으면 카톤당 수량 × 카톤 수(`DocumentLine.pcs()`), 둘 다 없으면 비운다. 카톤당 수량은 `lines[].qty_per_carton`과 입수 칸 근거 메모("카톤당 N")에 남긴다. 합친 부분품 행은 부분품 줄 전체 개수의 합(`rows/build.py`). 서류 대조의 '입수' 항목도 전체 개수로 비교한다. **LSY 변경 요청:** `a3_judge/spare_parts/merge.py`가 합친 줄의 `quantity`도 채우게(지금은 build.py가 대신 채움). 품목사항 엑셀은 입수를 쓰지 않아 영향 없음.
+- **등록 정보가 바뀌면:** a2_registry가 수입신고필증·시험성적서를 저장한 뒤 `a1_history.fill.service.on_registry_changed(shipper_id, product_models, record_nos)`를 부른다 → 해당 행만 다시 판단(final_value는 그대로). **YHS 변경 요청(미반영).**
+- 평가: `backend/scripts/eval/eval_reader.py --ai on|off [--reuse]` (Supabase 읽기만, 결과·가린 PNG 예시는 `data/eval/`, 값·이름은 찍지 않음). 정답은 검역이력 파일의 화주 탭(A기업·B기업)만, 묶음은 제품과 같게 폴더 1개 = 선적 1건. **AI 켬은 `data/eval/mask_names.json`(실제 화주명 목록, PC 안에만)이 있을 때만 돈다** — Supabase의 화주 표기('A기업' 등)는 가명이라 서류의 실제 회사명을 가리지 못한다(11/26 확인).
+- **화주명 가리기 목록(HS 결정 11/26):** PC에 목록이 없으면 백엔드가 **DB(Supabase samc_*, 읽기만)에서 자동으로 만든다** — 서버가 뜰 때 뒤에서 1번, AI가 필요할 때 1번(실패하면 30분 뒤 다시, 그동안 AI 전송은 막힘). 로직은 `core/mask_names.py`, 상태(있음/없음·개수만)는 연결 설정 화면. 수동으로는 `backend/scripts/make_mask_names.py`가 실제 선적서류의 수하인·구매자·수입자·통지처 칸에서 모아 만든다(이름은 화면·로그에 찍지 않고 화주별 개수만, `--check`로 가림 비율 확인).  실제 화주명은 PC 전용 파일 `DATA_DIR/mask_names.json`(기본 `data/mask_names.json`, .gitignore)에만 둔다. rules/shippers/*.json 등 커밋되는 파일에는 두지 않고, 그 안의 `mask_names`는 읽지 않는다. 형식: `{"A": ["A기업", "A기업 영문 표기"], "B": ["B기업"]}`(화주 id → 서류에 적히는 이름들, 배열만 두면 공통). **이 파일이 없거나 비어 있으면 `core/llm.py`가 서류 글자·이미지를 OpenAI로 보내지 않고**, 서류에는 "화주명 목록이 없어 AI로 보내지 않음 - 직접 입력"이 붙는다. 있으면 모든 화주 이름을 가린 뒤 보낸다(스캔본은 OCR로 찾은 이름을 검은 칸으로). 평가 스크립트도 같은 파일을 쓴다.
+
+---
+
 ## 5장. 데이터
 
 ### 5-1. 저장 3구분
@@ -497,7 +524,7 @@ a3_judge/                                  (LSY)
 | `audit_log` | 누가 언제 무엇을 바꿨나(로그인, 칸 수정, 설정 저장, 계정 변경) | KHS |
 | `documents` | 업로드 서류와 판독 결과(`ParsedDocument`) | KHS |
 | `history_rows` | 검역이력 행(아래 5-5), 칸마다 ai/final/evidence | KHS(생성)·LSY(재질·실적 칸) |
-| `mismatches` | 서류 대조 결과 | KHS |
+| `mismatches` | 서류 대조 결과(행마다 항목 목록: CI·PL·B/L 값, code_different, ai, status 일치·불일치·해결됨·비어 있음, chosen). 다시 대조해도 담당자 선택(chosen)은 이어받는다 | KHS |
 | `declarations` | 신고건(묶음) | LSY |
 | `records` | 정밀검사 실적 | YHS |
 | `products` | 제품별 재질·해외제조업소(수입신고서·성적서 등록) | YHS |
@@ -532,7 +559,7 @@ class Field(BaseModel, Generic[T]):
 | bl_no, invoice_no, doc_date, vessel | |
 | manufacturer_name, manufacturer_address | 원산지증명서 생산자 우선(RULES 11-7) |
 | currency, total_amount, total_cartons, total_gross_kg | 서류 대조용 합계 |
-| lines[] | model, description, qty_per_carton(입수), cartons, net_kg, amount, is_part(부분품), color |
+| lines[] | model, description, qty_per_carton(카톤당 수량), quantity(수량 PCS 합계 = 검역이력 입수, HS 결정 11/26), cartons, net_kg, amount, is_part(부분품), color |
 | parser, warnings | excel / pdf / llm |
 
 **검역이력 행 (HistoryRow)** — 기존 검역이력 시트(A기업 탭) 26칸 기준. 열 이름은 바꾸지 않는다.
@@ -608,12 +635,18 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 | `GET /core/shippers` | KHS | 화주 목록(가명) | P0 |
 | `POST /reader/upload` (multipart, shipper_id) | KHS | 서류 올리기 → 판독 → 행 생성까지. 응답: 생성·갱신 row_id | P0 |
 | `GET /reader/documents/{doc_id}` · `/file` | KHS | 판독 결과 / 원본 보기 | P1 |
+| `GET /reader/shipments?shipper_id=` | KHS (HS 요청 11/26) | 선적 건 카드: B/L(폴더 B/L 우선)로 묶은 서류별 추출값·출처, 빠진 CI·PL·B/L, 상태 | P0 |
 | `GET /history?shipper_id=&status=` | KHS | 검역이력 표 | P0 |
 | `PATCH /history/{row_id}` | KHS | 담당자 수정(final_value). 재질·제조사가 바뀌면 A3 재계산 | P0 |
 | `POST /history/refresh?shipper_id=` | KHS | 새로고침: 대조·유니패스·재계산(확정 값 유지) | P1 |
 | `GET /history/{row_id}/review` | KHS | 검수 패널 데이터 | P1 |
 | `POST /history/{row_id}/confirm` | KHS | 확인함 | P1 |
 | `GET /history/badges?shipper_id=` | KHS | 확인 필요 n, 진행 중 n | P0 |
+| `GET /history/steps?shipper_id=` | KHS (HS 요청 11/26) | 단계 표시줄 ①②③ 남은 일 수(빈 필수 칸 14개 기준) | P0 |
+| `POST /history/crosscheck?shipper_id=` | KHS (HS 요청 11/26) | 서류 3종 대조 다시 하기(코드 + OpenAI, 한쪽만 달라도 불일치). 결과는 `mismatches` 표 | P0 |
+| `GET /history/mismatches?shipper_id=&status=` | KHS (HS 요청 11/26) | 대조 항목 목록. 기본은 불일치·해결됨(일치·비어 있음은 `status`로 지정할 때만) | P0 |
+| `PATCH /history/{row_id}/resolve` (choices: item·source CI/PL/BL/manual·value·memo) | KHS (HS 요청 11/26) | 담당자가 고른 값 → final_value + 근거 `MANUAL: CI 값 선택`/`MANUAL: 직접 입력`, 항목 '해결됨'. 승인 행은 거부 | P0 |
+| `POST /history/fill?shipper_id=` | KHS (HS 요청 11/26) | 등록 정보로 제조사·재질·재질 구분·실적 다시 채우기(a2·a3 공개 함수만 호출). 자료가 없으면 비고 "서류 등록 필요" | P1 |
 | `POST /registry/upload` (multipart) | YHS | 수입신고서·성적서 → 등록 후보 | P1 |
 | `GET /registry/records?shipper_id=&maker=&model=` | YHS | 실적 탭 | P1 |
 | `PATCH /registry/records/{record_no}` | YHS | 실적 수정 | P1 |
@@ -625,12 +658,14 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 | `POST /judge/declarations?shipper_id=` | LSY | 신고건 나누기 계산 | P0 |
 | `POST /judge/item-sheet` (body: row_ids) | LSY | 한 신고건 확인 → 품목사항 엑셀 생성 | P0 |
 | `GET /judge/item-sheet/{file_id}` | LSY | 엑셀 다운로드 | P0 |
+| `GET /judge/item-sheet-groups?shipper_id=&group_by=` | LSY (HS 요청 11/26, KHS 작성 — LSY 확인 필요) | 같은 품목끼리 묶음: material·factory·product·record. 고르기만 하고 신고건을 합치지 않는다 | P1 |
+| `POST /judge/item-sheet/bulk` · `GET /judge/item-sheet/bulk/{file_id}` | LSY (HS 요청 11/26) | 전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx `<화주>_신고건NN_<모선>_<제조업소>.xlsx` + 검토용 합본(신고건마다 시트) + 제외됨.txt). 검사에 걸린 신고건(한 신고건 아님·실적 자료 없음)은 이유와 함께 제외 | P1 |
 | `GET /settings/rules` | JUJ | 규칙 목록(공통/선택, 설명) | P1 |
 | `GET /settings/shippers/{id}` · `PUT` · `POST /settings/shippers` | JUJ | 화주 설정 조회·저장·추가 | P1 |
 | `POST /settings/shippers/{id}/dry-run` | JUJ | 시험 실행(저장 없이 결과 미리보기) | P1 |
 | `POST /reader/inbox/scan?shipper_id=` | KHS (로직 점검 반영 11/25) | 드라이브 접수 폴더 '{화주}/새 서류/'의 B/L 폴더 가져오기(화주 설정 inbox가 켜졌을 때만, 드라이브 미연결이면 이유) | P1 |
 | `DELETE /settings/shippers/{id}` | JUJ (HS 요청 11/25, KHS 작성 — JUJ 확인 필요) | 화주 삭제. 기본 A·B는 409, 설정 파일은 `DATA_DIR/deleted_shippers/`로 옮겨 백업 | P1 |
-| `GET /core/connections` · `POST /core/connections/check` · `PUT /core/ai-choice` | KHS | 탭 5 연결 설정 화면용: 연결 상태 표, [연결 검사](실제 접속, AI는 모델 목록만 받아 토큰 안 씀), 사용할 AI·모델 고르기(`data/ai_choice.json`, .env보다 우선) — HS 요청 11/25 [신규] | P1 |
+| `GET /core/connections` · `POST /core/connections/check` · `PUT /core/ai-choice` | KHS | 탭 6 연결 설정 화면용(OpenAI만 사용: HS 결정 11/26: ai-choice는 OpenAI 모델만 저장): 연결 상태 표, [연결 검사](실제 접속, AI는 모델 목록만 받아 토큰 안 씀), 사용할 AI·모델 고르기(`data/ai_choice.json`, .env보다 우선) — HS 요청 11/25 [신규] | P1 |
 
 화면별 호출은 [DESIGN.md](DESIGN.md)에 있다.
 
@@ -638,12 +673,12 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 
 ## 7장. AI 호출 규칙
 
-1. **한 곳에서만:** `core/llm.py`의 `call_structured(prompt_name, version, inputs, schema)`만 쓴다. 다른 파일에서 SDK를 import하지 않는다.
-2. **화주명 가리기:** 보내기 전에 `core/masking.py`가 화주명·수입자명·주소의 화주 부분을 `[화주]`로 바꾼다. 돌려받은 값은 다시 채우지 않는다(화주명은 결과에 필요 없다).
-3. **구조화 출력:** 응답은 JSON으로 받고 Pydantic 스키마로 검증한다. 검증 실패·형식 오류면 **1회만** 재시도하고, 또 실패하면 그 칸을 "확인 필요"로 둔다. 기존 도구 기록: Claude의 형식 강제는 복잡한 판독 스키마를 거절했으므로 스키마를 지시문에 붙이고 Pydantic으로 검증했다.
-4. **프롬프트 버전:** 원문은 `backend/prompts/<영역>/<이름>.v<N>.md`. 고칠 때는 새 버전 파일을 만들고 코드에서 버전을 올린다. 예: `read_shipping_docs.v1.md`, `material_candidates.v1.md`, `factory_match.v1.md`.
-5. **AI를 쓰지 않는 일:** 품목사항 생성, 신고건 나누기, 실적 만료 계산, 실적 선택(규칙), 가격(USD) 계산, 서류 대조(숫자 비교).
-6. **AI를 쓰는 일:** 서류 판독(표가 안 읽히는 PDF·스캔), 재질 코드 후보, 제조사 주소 표기 차이 판단(규칙 점수로 애매할 때만), 신제품 재질(P2).
+1. **한 곳에서만:** `core/llm.py`의 `call_structured(prompt_name, version, inputs, schema)`만 쓴다. 다른 파일에서 SDK를 import하지 않는다. AI는 **OpenAI만** 쓴다(OpenAI만 사용: HS 결정 11/26, 키 `OPENAI_API_KEY`).
+2. **화주명 가리기:** 보내기 전에 `core/masking.py`가 화주명·수입자명·주소의 화주 부분을 `[화주]`로 바꾼다. 돌려받은 값은 다시 채우지 않는다(화주명은 결과에 필요 없다). 글자가 있는 PDF의 페이지 이미지는 그 낱말 위치를 검은 칸으로 덮어 보낸다(`a0_reader/extract/pdf.page_images(redact=)`). 글자가 없는 스캔본·사진은 위치를 몰라 가리지 못한다 — 실제 서류로 보내는 것은 HS 승인 범위에서만(11/26 평가 승인).
+3. **구조화 출력:** 응답은 JSON으로 받고(OpenAI `response_format=json_object`) Pydantic 스키마로 검증한다. 검증 실패·형식 오류면 **1회만** 재시도하고, 또 실패하면 그 칸을 "확인 필요"로 둔다. 기존 도구 기록: Claude의 형식 강제는 복잡한 판독 스키마를 거절했으므로 스키마를 지시문에 붙이고 Pydantic으로 검증했다.
+4. **프롬프트 버전:** 원문은 `backend/prompts/<영역>/<이름>.v<N>.md`. 고칠 때는 새 버전 파일을 만들고 코드에서 버전을 올린다. 예: `read_shipping_docs.v2.md`, `classify_doc.v2.md`, `crosscheck_docs.v1.md`, `material_candidates.v1.md`, `factory_match.v1.md`.
+5. **AI를 쓰지 않는 일:** 품목사항 생성, 신고건 나누기, 실적 만료 계산, 실적 선택(규칙), 가격(USD) 계산, 서류 대조의 숫자 비교(코드가 먼저, AI는 보조).
+6. **AI를 쓰는 일:** 서류 종류 판별(이름·제목으로 모를 때만), 서류 판독(규칙으로 빈 머리 칸·품목 칸만 보충, 스캔본은 페이지 이미지 멀티모달), 서류 대조 보조(코드 비교와 OR, 결론은 담당자), 재질 코드 후보, 제조사 주소 표기 차이 판단(규칙 점수로 애매할 때만), 신제품 재질(P2).
 7. **꺼도 동작:** `LLM_ENABLED=false`면 AI 단계는 건너뛰고 "확인 필요"를 남긴다.
 8. **기록:** 호출마다 기능·프롬프트 버전·토큰·추정 비용을 로컬 `logs/ai_usage.jsonl`에 남긴다(기존 도구와 같은 방식). 서류 원문은 로그에 남기지 않는다.
 9. **사진만으로 재질을 확정하지 않는다.** 기존 도구 시험에서 실패했다(미팅 11/24).
@@ -669,7 +704,7 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 ```
 APP_ENV API_HOST API_PORT CORS_ORIGINS DATA_DIR LOCAL_DB_PATH SOFFICE_PATH
 AUTH_ENABLED AUTH_SECRET_KEY AUTH_SESSION_HOURS ADMIN_USERNAME ADMIN_PASSWORD ADMIN_DISPLAY_NAME
-LLM_ENABLED AI_PROVIDER ANTHROPIC_API_KEY CLAUDE_MODEL OPENAI_API_KEY OPENAI_MODEL MASK_SHIPPER_NAMES
+LLM_ENABLED OPENAI_API_KEY OPENAI_MODEL MASK_SHIPPER_NAMES  (OpenAI만 사용: HS 결정 11/26: AI_PROVIDER·ANTHROPIC_API_KEY·CLAUDE_MODEL 삭제)
 GOOGLE_CREDENTIALS_FILE GOOGLE_TOKEN_FILE DRIVE_INBOX_FOLDER_ID DRIVE_LAW_FOLDER_ID STUDENT_DATA_FOLDER_ID
 SPREADSHEET_ID ITEM_SPREADSHEET_ID GMAIL_SENDER ALERT_EMAIL_TO ALERT_DAYS_BEFORE FACTORY_CODE_VALID_YEARS
 UNIPASS_MODE UNIPASS_CARGO_API_KEY UNIPASS_CUSTOMS_CHECK_API_KEY UNIPASS_INSPECTION_API_KEY
@@ -704,7 +739,7 @@ frontend: NEXT_PUBLIC_API_BASE
 - [ ] 2. 화물관리번호 앞 11자리 = 동일 모선 판정이 맞는지(선사가 다르면 달라질 수 있음)
 - [ ] 3. 색이 다른 제품을 한 신고건에 묶을 때 실적번호 여러 개 입력 조건(B사만? 공통?)
 - [ ] 4. 재질 포함 규칙의 근거 기준과 예외(로직은 기존 코드로 확인, 근거 조항 미확인)
-- [ ] 5. 신청서 필수 칸 범위(공통사항·품목사항·한글표시사항·재질·첨부)
+- [ ] 5. 신청서 필수 칸 범위(공통사항·품목사항·한글표시사항·재질·첨부) — 검역 리스트 필수 칸 14개는 확정(HS 결정 11/26, 4-6). 신청서 쪽 범위는 아직 확인 필요
 - [ ] 6. HS 코드 판별 불필요의 범위(HS 개정 주의)
 - [ ] 7. 유리제·법랑·옹기류·도자기제 세분 기준(공전 총칙 3.자·구분표, 수치 최신본 확인 필요)
 - [ ] 8. A사 예외(과거 제조업소 코드 유지, 부분품 본품 한 모델로 몰기, 단가 몰기)의 허용 근거
@@ -732,7 +767,7 @@ frontend: NEXT_PUBLIC_API_BASE
 - [ ] 선적서류 샘플(CI·PL·B/L·원산지증명서): 공유본에 없음 → 가상 서류 제작 또는 SAMC 요청
 - [ ] B사 선적서류 표본(기존 도구도 B사 자동 판독 꺼짐)
 - [ ] Python 3.12와 기존 도구 패키지(3.15 고정) 호환
-- [ ] 판독 AI 비교: 기존 Gemini 판독 vs Claude·GPT
+- [ ] 판독 AI 비교: 기존 Gemini 판독 vs OpenAI(GPT)
 
 ---
 
@@ -755,7 +790,7 @@ frontend: NEXT_PUBLIC_API_BASE
 | 반입지 / 반입일 | 입항적재화물목록에 적힌 최종 장소 / 그곳에 들어온 날 |
 | 부분품 | 본품(밥솥)의 부품(내솥 등). A사는 본품 한 모델로 합쳐 신고 |
 | 내색 / 외색 | 그릇 안쪽 / 바깥쪽 색. B사는 신고건을 나눌 때 씀 |
-| 입수 | 카톤 1개에 든 수량 |
+| 입수 | 그 행의 전체 개수(PCS 합계). 카톤 1개에 든 수량이 아니다(HS 결정 11/26, 4-6). 카톤당 수량은 근거 메모에 |
 | 시험성적서 / 검사성적서 | 정밀검사 결과 문서(수입식품정보마루에서 내려받음) |
 | 수입신고서 | 이전에 신고한 신청서. 재질 판단 근거 |
 | 공전 | 기구 및 용기·포장의 기준 및 규격(식약처 고시) |

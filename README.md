@@ -37,11 +37,11 @@
 | 번호 | 담당 | 기능 | 화면 | 폴더 |
 |---|---|---|---|---|
 | 1 | YHS | 수입신고서·성적서 등록, 실적 표, 해외제조업소 코드 갱신, 만료 알림 메일(3·1개월 전) | 탭 2. 서류 등록·만료 알림 (`/registry`) | `backend/app/a2_registry/`, `frontend/app/registry/` `components/registry/` |
-| 2 | KHS (PM) | 서류 판독, 검역이력 행 생성, 서류 대조, 검수 패널, 홈 대시보드, 공통 코드·DB, (후순위) 유니패스 반입 상태 | 홈 (`/`) · 탭 3. 검역 리스트 (`/history`, 메인 화면) · 탭 1 첫 화면 화주 선택 배치 · 탭 5. 연결 설정 (`/connections`) | `backend/app/core/` `a0_reader/` `a1_history/` `law_data/`, `frontend/app/page.tsx` `app/history/` `components/home/` `components/reader/` `review/` |
-| 3 | LSY | 재질·실적·제조사 판단, 신고건 묶음, 품목사항 엑셀 | 탭 4. 재질·실적 판단 (`/judge`) | `backend/app/a3_judge/`, `frontend/app/judge/` `components/judge/` |
+| 2 | KHS (PM) | 서류 판독, 검역이력 행 생성, 서류 대조, 검수 패널, 홈 대시보드, 공통 코드·DB, (후순위) 유니패스 반입 상태 | 홈 (`/`) · 탭 3. 검역 리스트 (`/history`, 메인 화면) · 탭 1 첫 화면 화주 선택 배치 · 탭 6. 연결 설정 (`/connections`) | `backend/app/core/` `a0_reader/` `a1_history/` `law_data/`, `frontend/app/page.tsx` `app/history/` `components/home/` `components/reader/` `review/` |
+| 3 | LSY | 재질·실적·제조사 판단, 신고건 묶음, 품목사항 엑셀 | 탭 4. 재질·실적 판단 (`/judge`) · 탭 5. 품목사항 엑셀 (`/item-sheet`, HS 요청 11/26) | `backend/app/a3_judge/`, `frontend/app/judge/` `components/judge/` |
 | 4 | JUJ | 화주 설정(공통 규칙 / 화주별 선택 규칙), 규칙 적용 엔진 | 탭 1. 기업 설정 (`/settings`, 규칙 설정 `/settings/rules`) | `backend/app/a4_settings/` `rules/`, `frontend/app/settings/` `components/settings/` |
 
-홈(전체 현황) + 탭 5개(1인 1탭). 탭 순서는 1 기업 설정 → 2 서류 등록·만료 알림 → 3 검역 리스트 → 4 재질·실적 판단 → 5 연결 설정이다(탭 순서 변경: 로직 점검 반영 11/25 — 데이터 흐름 순서). 로그인하면 메인 화면인 검역이력 표로 간다. 탭마다 왼쪽 사이드바에 세부 화면 2~3개가 있다. 5·6번(주간 보고서)은 weekly_report 저장소에서 한다.
+홈(전체 현황) + 탭 6개(1인 1탭). 탭 순서는 1 기업 설정 → 2 서류 등록·만료 알림 → 3 검역 리스트 → 4 재질·실적 판단 → 5 품목사항 엑셀 → 6 연결 설정이다(HS 요청 11/26: 5 품목사항 엑셀 추가)(탭 순서 변경: 로직 점검 반영 11/25 — 데이터 흐름 순서). 로그인하면 메인 화면인 검역이력 표로 간다. 탭마다 왼쪽 사이드바에 세부 화면 2~3개가 있다. 5·6번(주간 보고서)은 weekly_report 저장소에서 한다.
 
 자세한 기능 ID·우선순위는 [AGENTS.md 1장](AGENTS.md#1장-기능-목록과-상태).
 
@@ -86,7 +86,7 @@ declaration_list/
 │     └─ (기능 폴더마다) router.py service.py models.py tests/
 ├─ backend/prompts/<영역>/  rules/ (JUJ)  templates/ (LSY)  scripts/seed/ (KHS)  tests/e2e/ (KHS)
 ├─ frontend/
-│  ├─ app/            layout.tsx·page.tsx(홈) settings/ (JUJ, 탭 1)  registry/ (YHS, 탭 2)  history/ (KHS, 탭 3)  judge/ (LSY, 탭 4)  connections/ (KHS, 탭 5)
+│  ├─ app/            layout.tsx·page.tsx(홈) settings/ (JUJ, 탭 1)  registry/ (YHS, 탭 2)  history/ (KHS, 탭 3)  judge/ (LSY, 탭 4)  item-sheet/ (LSY, 탭 5)  connections/ (KHS, 탭 6)
 │  ├─ components/     ui/ (공통)  home/·reader/·review/ (KHS)  registry/ (YHS)  judge/ (LSY)  settings/ (JUJ)
 │  └─ lib/            api/<영역>.ts  text/<영역>.ts  types/ (KHS)
 ├─ supabase/migrations/ (KHS)   samples/A/ samples/B/   data/ (git 제외)
@@ -112,7 +112,7 @@ cp .env.example .env            # Windows: copy .env.example .env
 | `SUPABASE_ANON_KEY` | `sb_publishable_…` | PM에게 받기 (대시보드 Project Settings → API Keys → publishable 키) |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | 프로그램 계정 1개 | PM에게 직접 받기 (채팅·커밋 금지) |
 | `AUTH_SECRET_KEY` | 아무 긴 무작위 문자열 | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
-| `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY` | 각자 AI 키 | 각 사이트에서 발급 (없으면 `LLM_ENABLED=false`) |
+| `OPENAI_API_KEY` | AI 키 (AI는 OpenAI만 사용, OpenAI만 사용: HS 결정 11/26) | 각 사이트에서 발급 (없으면 `LLM_ENABLED=false`) |
 
 `SUPABASE_SERVICE_ROLE_KEY`(secret 키)는 **PM만** 넣습니다. 팀원은 비워 둡니다. 키가 없어도 `LLM_ENABLED=false`, `UNIPASS_MODE=mock`으로 실행할 수 있습니다.
 
