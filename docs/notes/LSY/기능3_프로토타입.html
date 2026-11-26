@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기능 3 프로토타입</title>
+<!--
+  기능 3 (재질·실적 판단, 신고 묶음, 품목사항 엑셀) 시연용 프로토타입 · 담당 LSY
+  - 모든 값은 가상 데이터(DEMO-*)다. 실제 화주·제조사·실적·B/L 값을 넣지 않는다 (AGENTS 0-3, 0-4).
+  - 팀 본 구현(Next.js + FastAPI a3_judge)과 별개인 단독 파일이다. 외부 라이브러리 없음.
+  - "연결 지점" 주석이 붙은 곳이 나중에 API(기능 1·2·4)로 바꿀 자리다.
+-->
+<style>
+:root{--ink:#18243a;--muted:#56627a;--line:#e1e6ef;--accent:#2459d3;--fog:#f0f2f7;--panel:#fff;--soft:#f5f7fb;--hover:#f5f7ff;--active:#ebf1ff;--warnbg:#fff2df;--warnink:#8a4d12;--okbg:#e5f6ef;--okink:#146447;--info:#edf1ff;font:14px "Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;color:var(--ink);background:var(--fog)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#e4e9f3;--muted:#a3adc2;--line:#2e3a52;--accent:#6f97ff;--fog:#111827;--panel:#1a2336;--soft:#202b42;--hover:#22304d;--active:#263b66;--warnbg:#3d2e14;--warnink:#f3c784;--okbg:#143628;--okink:#8fe0bb;--info:#22305a}}
+:root[data-theme="dark"]{--ink:#e4e9f3;--muted:#a3adc2;--line:#2e3a52;--accent:#6f97ff;--fog:#111827;--panel:#1a2336;--soft:#202b42;--hover:#22304d;--active:#263b66;--warnbg:#3d2e14;--warnink:#f3c784;--okbg:#143628;--okink:#8fe0bb;--info:#22305a}
+*{box-sizing:border-box}body{margin:0;background:var(--fog);color:var(--ink)}h1,h2,h3,p{margin:0}button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.48;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #5481f6;outline-offset:2px}[hidden]{display:none!important}
+.shell{max-width:1530px;margin:auto;padding-inline:32px}.top{background:var(--panel);border-bottom:1px solid var(--line)}.bar{height:62px;display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{display:flex;align-items:center;gap:13px}.brand span{border-left:1px solid var(--line);padding-left:13px;color:var(--muted)}.demo{font-size:11px;color:var(--accent);background:var(--info);border-radius:20px;padding:5px 10px;white-space:nowrap}
+main{padding-bottom:32px}.title{padding:28px 0 16px}h1{font-size:28px;letter-spacing:-.05em}h2{font-size:18px;letter-spacing:-.03em}h3{font-size:14px}.muted{color:var(--muted);font-size:12px;line-height:1.6}.title p{margin-top:6px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}.tabs{display:flex;gap:3px;padding:10px 14px 0;border-bottom:1px solid var(--line)}.tab{background:transparent;border:0;border-bottom:3px solid transparent;padding:10px 13px;color:var(--muted)}.tab[aria-selected=true]{background:var(--info);border-color:var(--accent);font-weight:750;color:var(--accent)}
+.toolbar,.detail-head,.dialog-head{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:13px 16px;flex-wrap:wrap}.actions{display:flex;align-items:center;gap:10px}.primary{background:var(--accent);color:#fff;border:1px solid var(--accent);border-radius:8px;padding:8px 13px;font-weight:700}.secondary{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 11px}
+.scroll{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap;font-size:12px}th{background:var(--soft);color:var(--muted);font-weight:700}th,td{border-top:1px solid var(--line);padding:10px 10px}#records tbody tr{cursor:pointer}#records tbody tr:hover{background:var(--hover)}#records tbody tr.active{background:var(--active)}#records tbody tr.active td:first-child{box-shadow:inset 3px 0 var(--accent)}.check{text-align:center}.number{text-align:right;font-variant-numeric:tabular-nums}.mono{font-family:Consolas,monospace}input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;vertical-align:middle;margin:0}.row-link{border:0;background:transparent;padding:0;font-weight:700;text-align:left}.wrap{white-space:normal;min-width:150px;line-height:1.45}.dash{color:var(--muted)}
+#records table{width:max-content;min-width:100%}#records th:first-child,#records td:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}#records th:first-child{background:var(--soft)}#records tbody tr.active td:first-child{background:var(--active)}
+.detail{margin-top:15px}.badge{border-radius:15px;padding:4px 8px;font-size:11px;font-weight:750;background:var(--okbg);color:var(--okink);white-space:normal}.warn{background:var(--warnbg);color:var(--warnink)}.item-flag{display:inline-block;margin-left:8px;color:var(--warnink);font-size:11px}
+.columns{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}.card{padding:14px 16px;min-width:0}.card+.card{border-left:1px solid var(--line)}.card h3{margin-bottom:8px}.card p{line-height:1.6;font-size:12px}.detail-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.list{margin:6px 0 0;padding:0;list-style:none}.list li{border-top:1px solid var(--line);padding:7px 0;font-size:12px;line-height:1.55}.list b{display:block}.tag{display:inline-block;font-size:10.5px;border-radius:10px;padding:1px 7px;margin-left:4px;background:var(--info);color:var(--accent);font-weight:700}.tag.warn{background:var(--warnbg);color:var(--warnink)}.tag.ok{background:var(--okbg);color:var(--okink)}.struck{text-decoration:line-through;color:var(--muted)}
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 8px}.step{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--muted)}.step.on{border-color:var(--accent);color:var(--accent);font-weight:700;background:var(--info)}
+dialog{padding:0;border:1px solid var(--line);border-radius:14px;width:min(1100px,calc(100% - 24px));max-height:90vh;background:var(--panel);color:var(--ink)}dialog::backdrop{background:#19264380}.dialog-head{border-bottom:1px solid var(--line)}.dialog-body{padding:16px}.group{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:12px}.group>h3,.sheet-head{padding:10px 12px;background:var(--info)}.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.group>.muted{padding:8px 12px}.warning{margin-top:10px;padding:9px 12px;background:var(--warnbg);color:var(--warnink);border-radius:7px;font-size:12px;line-height:1.6}.note{margin-top:10px;padding:9px 12px;background:var(--info);border-radius:7px;font-size:12px;line-height:1.6}
+.sheet-grid .coordinate{color:var(--muted);background:var(--soft);text-align:center}.sheet-grid td{border-right:1px solid var(--line)}.sheet-grid .empty-cell{color:var(--muted)}.sheet-grid td.over{background:var(--warnbg)}.mode{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:10px}.mode label{display:flex;gap:5px;align-items:center}
+.history-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;align-items:start;gap:15px;margin:15px 0}.filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:15px 16px}.field{display:grid;gap:5px;font-size:12px;font-weight:700;min-width:130px}.field select{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 8px}.result-count{margin-left:auto;padding-bottom:7px}.rules{padding:16px}.rule-summary{margin:12px 0;padding:11px 12px;background:var(--info);border-radius:7px;font-size:12px;line-height:1.6}.category{border-top:1px solid var(--line);padding:11px 0 0;margin-top:11px}.category p{line-height:1.5}.switch{display:flex;gap:6px;align-items:center;font-size:12px;margin-top:6px}.empty{padding:23px 14px;color:var(--muted);text-align:center}.rule-source{color:var(--muted);font-size:11px;margin-top:8px}
+@media(max-width:970px){.history-layout{grid-template-columns:1fr}.columns{grid-template-columns:1fr}.card+.card{border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:700px){.shell{padding-inline:16px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="shell bar"><div class="brand"><b>기능 3 프로토타입</b><span>재질·실적 판단 · 신고 묶음 · 품목사항</span></div><span class="demo">가상 데이터 · 시연용</span></div></header>
+<main class="shell">
+  <div class="title"><h1>검역이력</h1><p class="muted">행을 눌러 재질·등록 공장·실적 근거를 검토합니다. 만들 행을 체크한 뒤 체크 열 맨 위 <b>품목사항 생성</b> 칸을 체크하면 확인 창이 열립니다. [만들기] 후에는 체크가 모두 풀립니다.</p></div>
+  <section class="box" aria-label="검역이력">
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" id="records-tab-A" data-shipper="A" role="tab" aria-selected="true" aria-controls="records">검역이력 · A사(가전)</button>
+      <button type="button" class="tab" id="records-tab-B" data-shipper="B" role="tab" aria-selected="false" aria-controls="records">검역이력 · B사(주방용품)</button>
+      <button type="button" class="tab" id="history-tab" role="tab" aria-selected="false" aria-controls="history">실적</button>
+    </div>
+    <div class="toolbar" id="record-toolbar"><p class="muted" id="toolbar-msg" aria-live="polite">"—"는 값 없음(기능 1·2에서 채울 칸 또는 확인 필요).</p><div class="actions"><span class="muted" id="count" aria-live="polite"></span><button type="button" class="secondary" id="select-all">전체 선택</button><button type="button" class="secondary" id="clear-all">선택 해제</button></div></div>
+    <div class="scroll" id="records" role="tabpanel" aria-labelledby="records-tab-A"><table><thead id="columns"></thead><tbody id="rows"></tbody></table></div>
+  </section>
+  <section class="box detail" id="detail" aria-label="선택한 품목 상세"></section>
+  <section class="history-layout" id="history" role="tabpanel" aria-labelledby="history-tab" hidden>
+    <section class="box" aria-label="정밀검사 실적 목록">
+      <div class="filters">
+        <label class="field">제조사<select id="filter-maker"></select></label>
+        <label class="field">재질 구분<select id="filter-material"></select></label>
+        <label class="field">모델<select id="filter-model"></select></label>
+        <button type="button" class="secondary" id="reset-history">초기화</button>
+        <span class="muted result-count" id="history-count" aria-live="polite"></span>
+      </div>
+      <div class="scroll"><table><thead><tr>
+        <th>제품명</th><th>검체 재질</th><th>부품</th><th>색상</th><th>실적접수번호</th><th>신청일</th><th>승인일</th><th>만료일</th><th>비고</th>
+      </tr></thead><tbody id="history-rows"></tbody></table></div>
+    </section>
+    <aside class="box rules" aria-labelledby="rules-title">
+      <h2 id="rules-title">화주별 특이사항</h2>
+      <label class="field" style="margin-top:10px">규칙 표시 화주<select id="rule-party"></select></label>
+      <p class="rule-source" id="rule-source"></p>
+      <div id="rule-content" aria-live="polite"></div>
+    </aside>
+  </section>
+</main>
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <div class="dialog-head"><h2 id="dialog-title">품목사항(기구용기검역)</h2><button type="button" class="secondary" id="dialog-close">닫기</button></div>
+  <div class="dialog-body" id="dialog-body"></div>
+</dialog>
+<script>
+/* ===================== 가상 데이터 =====================
+   연결 지점: DEMO 객체 전체를 나중에 API 응답으로 바꾼다.
+   - cargo, products : 기능 1 (검역이력 행)
+   - factories, records : 기능 2 (등록 공장 · 정밀검사 실적)
+   - shipperRules : 기능 4 (화주 ID별 규칙, 키 이름 = RULES.md 11-11)
+   연결 키: 품목 ID(id) · 모델 ID(model) · 화주 ID(shipper) · 공장 코드(code) · 내부 실적 ID(rid)
+   화주는 A사(가전) · B사(주방용품) 2곳. 모든 값은 가상(DEMO-*)이다.
+*/
+const DEMO = {
+  settings:{
+    record_valid_years:5,   // 정밀검사 실적 유효기간(년). 별표 10 · 기산일=수입신고확인증 발급일. 승인일과 같은 칸인지 확인 필요
+  },
+  cargo:[
+    {id:'DEMO-CARGO-A1',mrn:['36DEMOA0001','0001','0001'],bl:'DEMO-BL-A1',warehouse:'DEMO-W01',received:'2036-02-24',arrival:'2036-02-23',shipped:'2036-02-19',vessel:'가상 모선 01',port:'DEMO-ARR-1',origin:'DEMO-DEP-1',maker:'가상 제조소 가',shipper:'A',docAddress:'예시구 다 지점 1'},
+    {id:'DEMO-CARGO-B1',mrn:['36DEMOB0001','0001','0001'],bl:'DEMO-BL-B1',warehouse:'DEMO-W02',received:'2036-02-25',arrival:'2036-02-24',shipped:'2036-02-20',vessel:'가상 모선 02',port:'DEMO-ARR-2',origin:'DEMO-DEP-2',maker:'DEMO HAN SEONG CERAMICS',shipper:'B',docAddress:'예시구 마 지점 5'},
+    {id:'DEMO-CARGO-B2',mrn:['36DEMOB0002','0001','0001'],bl:'DEMO-BL-B2',warehouse:'DEMO-W02',received:'2036-02-26',arrival:'2036-02-25',shipped:'2036-02-21',vessel:'가상 모선 03',port:'DEMO-ARR-2',origin:'DEMO-DEP-2',maker:'가상 제조소 다',shipper:'B',docAddress:'예시구 바 지점 7'}
+  ],
+  // 등록 공장(가상). 이름이 같아도 주소·코드가 다를 수 있다.
+  factories:[
+    {code:'DEMO-FAC-01',name:'가상제조소 가',address:'예시구 가 지점 1'},
+    {code:'DEMO-FAC-02',name:'가상제조소 가',address:'예시구 다 지점 1'},
+    {code:'DEMO-FAC-03',name:'가상제조소 가',address:'예시구 라 지점 3'},
+    {code:'DEMO-FAC-21',name:'DEMO HANSEONG CERAMICS',address:'예시구 마 지점 5'},
+    {code:'DEMO-FAC-31',name:'가상제조소 다',address:'예시구 바 지점 7'}
+  ],
+  products:[
+    {id:'P01',model:'DEMO-M01',cargo:'DEMO-CARGO-A1',name:'금속 보관용기 (DEMO-M01)',english:'Metal Food Container',pack:5,cartons:7,weight:33.5,usd:610,value:2750,spec:'보관용 · 0.9 L',
+      materialStage:'history',parts:[{part:'본체 내면',raw:'스테인리스',source:'과거 이력 DEMO-101',candidate:'스테인리스제'},{part:'뚜껑 패킹',raw:'실리콘 고무',source:'과거 이력 DEMO-101',candidate:'고무제'}],
+      pastFactory:'DEMO-FAC-01',color:{inner:'검정'},docs:{label:'스테인리스 · 실리콘 고무 표기 (예시 문구)'}},
+    {id:'P02',model:'DEMO-M02',cargo:'DEMO-CARGO-A1',name:'금속 보관용기 부분품 (DEMO-M02)',english:'Container Lid',pack:8,cartons:5,weight:14.8,usd:175,value:660,spec:'교체용 뚜껑',spare:true,spareOf:'DEMO-M01',
+      materialStage:'report',parts:[{part:'뚜껑 안쪽',raw:'STAINLESS STEEL',source:'재질증명서(예시)',candidate:'스테인리스제'}],
+      pastFactory:'DEMO-FAC-01',color:{inner:'무색'},docs:{certificate:'STAINLESS STEEL (예시 문구)'}},
+    {id:'P03',model:'DEMO-M03',cargo:'DEMO-CARGO-B1',name:'도자기 그릇 (DEMO-M03)',english:'Ceramic Bowl, White',pack:9,cartons:6,weight:31.2,usd:240,value:1430,spec:'식기용 · 내색 흰색',
+      materialStage:'history',parts:[{part:'그릇 내부',raw:'도자기',source:'과거 이력 DEMO-201',candidate:'도자기제'}],
+      pastFactory:'DEMO-FAC-21',color:{inner:'흰색',outer:'파란색'},docs:{label:'도자기 · 내색 흰색 (예시 문구)'}},
+    {id:'P04',model:'DEMO-M04',cargo:'DEMO-CARGO-B1',name:'도자기 그릇 (DEMO-M04)',english:'Ceramic Bowl, Blue',pack:9,cartons:4,weight:20.8,usd:160,value:910,spec:'식기용 · 내색 파란색',
+      materialStage:'history',parts:[{part:'그릇 내부',raw:'도자기',source:'과거 이력 DEMO-202',candidate:'도자기제'}],
+      pastFactory:'DEMO-FAC-21',color:{inner:'파란색',outer:'파란색'},docs:{label:'도자기 · 내색 파란색 (예시 문구)'}},
+    {id:'P05',model:'DEMO-M05',cargo:'DEMO-CARGO-B2',name:'유리컵 (DEMO-M05)',english:'Glass Cup',pack:7,cartons:3,weight:7.5,usd:98,value:405,spec:'용도 미기재 · 310 mL',glass:{usage:'',volume:'310 mL'},
+      materialStage:'label',parts:[{part:'컵 안쪽',raw:'유리',source:'한글 라벨(예시)',candidate:'유리제'}],
+      pastFactory:'DEMO-FAC-31',color:{inner:'투명'},docs:{label:'유리 · 용도 표기 없음 (예시 문구)'}},
+    {id:'P06',model:'DEMO-M06',cargo:'DEMO-CARGO-B2',name:'코팅 프라이팬 (DEMO-M06)',english:'Coated Frying Pan',pack:4,cartons:5,weight:18,usd:220,value:900,spec:'조리용 · 지름 28 cm',newProduct:true,
+      materialStage:'label',parts:[{part:'팬 내면',raw:'불소수지 코팅',source:'한글 라벨(예시)',candidate:'금속제(불소수지도장)',ai:true},{part:'손잡이',raw:'페놀수지',source:'한글 라벨(예시)',candidate:'',note:'식품 비접촉 부위 · 대상 여부 확인 필요'}],
+      pastFactory:'DEMO-FAC-31',color:{inner:'검정'},docs:{label:'불소수지 코팅 · 페놀수지 손잡이 (예시 문구)'}}
+  ],
+  // 정밀검사 실적(가상). rid = 내부 실적 ID
+  records:[
+    {rid:'R-099',maker:'가상 제조소 가',group:'금속제',model:'DEMO-M01',name:'금속 보관용기',material:'스테인리스제',part:'본체',inner:'검정',factory:'DEMO-FAC-01',record:'DEMO-099',applied:'2030-04-25',approved:'2030-05-01',expired:'2035-05-01',note:'만료 · 과거 재질 참고용'},
+    {rid:'R-101',maker:'가상 제조소 가',group:'금속제',model:'DEMO-M01',name:'금속 보관용기',material:'스테인리스제',materials:['고무제','스테인리스제'],part:'본체·뚜껑 패킹',inner:'검정',factory:'DEMO-FAC-01',record:'DEMO-101',applied:'2033-08-14',approved:'2033-08-18',expired:'2038-08-18',note:'완제품 이력'},
+    {rid:'R-201',maker:'DEMO HANSEONG CERAMICS',group:'도자기제',model:'DEMO-M03',name:'도자기 그릇',material:'도자기제',part:'그릇 본체',inner:'흰색',outer:'파란색',factory:'DEMO-FAC-21',record:'DEMO-201',applied:'2034-05-18',approved:'2034-05-24',expired:'2039-05-24',note:'색상 비교용 예시'},
+    {rid:'R-205',maker:'DEMO HANSEONG CERAMICS',group:'도자기제',model:'DEMO-M03',name:'도자기 그릇',material:'도자기제',part:'그릇 본체',inner:'흰색',outer:'파란색',factory:'DEMO-FAC-21',record:'DEMO-205',applied:'2035-07-07',approved:'2035-07-13',expired:'2040-07-13',note:'동일 모델의 추가 후보'},
+    {rid:'R-202',maker:'DEMO HANSEONG CERAMICS',group:'도자기제',model:'DEMO-M04',name:'도자기 그릇',material:'도자기제',part:'그릇 본체',inner:'파란색',outer:'파란색',factory:'DEMO-FAC-21',record:'DEMO-202',applied:'2034-05-18',approved:'2034-05-24',expired:'2039-05-24',note:'색상 비교용 예시'},
+    {rid:'R-301',maker:'가상 제조소 다',group:'유리제',model:'DEMO-M05',name:'유리컵',material:'유리제',part:'컵 본체',inner:'투명',factory:'DEMO-FAC-31',record:'DEMO-301',applied:'2035-09-06',approved:'2035-09-13',expired:'2040-09-13',note:'재질 구분 예시'}
+  ],
+  // 기능 4 형식(가상): 화주 ID → { 키: 값 }. 키 이름은 RULES.md 11-11(기존 CompanyRules)과 같다. (제안) 표시 키는 기존에 없던 것.
+  shipperRules:{
+    A:{name:'A사(가전)',values:{merge_spare_parts:true,spare_same_as_model:true,prefer_past_factory_code:true,color_check:false,group_by_color:false,one_record_per_declaration:true,max_rows_per_declaration:null}},
+    B:{name:'B사(주방용품)',values:{merge_spare_parts:false,spare_same_as_model:false,prefer_past_factory_code:false,color_check:true,group_by_color:true,color_basis:'내색',one_record_per_declaration:false,max_rows_per_declaration:null}}
+  },
+  // 화면 표시용 규칙 설명 (기능 4의 catalog에 해당)
+  ruleCatalog:[
+    ['merge_spare_parts','부분품 줄을 B/L마다 한 행으로 합치기','행 구성(기능 1) 단계 규칙 · 이 화면에서는 안내만'],
+    ['spare_same_as_model','부분품은 본품과 같은 재질·실적으로 신고','재질·실적 판단에 반영'],
+    ['prefer_past_factory_code','서류 주소와 달라도 과거 신고 코드 우선','화주 요청 예외 · 허용 근거 확인 필요 8'],
+    ['color_check','시험성적서 색상과 현품 색상 비교','실적 대조의 바탕색상 검사'],
+    ['group_by_color','색상이 같아야 같은 신고','신고 묶음 기준에 색상(color_basis) 추가'],
+    ['one_record_per_declaration','한 신고에 실적 1개','끄면 한 신고건에 실적번호 여러 개 허용'],
+    ['max_rows_per_declaration','신고당 최대 행 수 (제안)','기본 끔(11/25 결정) · 켜면 세는 단위(행/품목) 확인 필요']
+  ]
+};
+
+/* ===================== 공통 도구 ===================== */
+const byId=id=>document.getElementById(id);
+const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+const num=v=>Number(v).toLocaleString('ko-KR',{maximumFractionDigits:2});
+const money=v=>Number(v).toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dash='<span class="dash">—</span>';
+const cargoFor=item=>DEMO.cargo.find(c=>c.id===item.cargo);
+const productByModel=model=>DEMO.products.find(p=>p.model===model);
+const rules=shipper=>DEMO.shipperRules[shipper].values;
+const colorText=c=>c.outer?'내색 '+c.inner+' / 외색 '+c.outer:c.inner;
+const normalize=s=>s.toUpperCase().replace(/[\s.,\-]/g,'');
+const recMaterials=r=>r.materials||[r.material];
+// 부분품이고 spare_same_as_model이면 본품 재질을 따른다
+function materialOwner(item){
+  return item.spare&&rules(cargoFor(item).shipper).spare_same_as_model?productByModel(item.spareOf)||item:item;
+}
+// 재질 코드명: 가나다순 표시 (원문은 parts에 보존)
+const materialList=item=>[...new Set(materialOwner(item).parts.map(p=>p.candidate).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ko'));
+
+/* ===================== 판단 로직 (a3_judge 대응) ===================== */
+// 재질: ① 과거 이력 → ② 시험성적서·재질증명서 → ③ 현품 자료(라벨·사진)
+const STAGES=[['history','① 과거 이력'],['report','② 시험성적서·재질증명서'],['label','③ 현품 자료(라벨·사진)']];
+function judgeMaterial(item){
+  const owner=materialOwner(item),reasons=[];
+  if(owner.parts.some(p=>p.ai))reasons.push('재질 AI 후보 · 담당자 확인 필요');
+  if(owner.parts.some(p=>!p.candidate))reasons.push('부위 재질 확인 필요');
+  if(item.glass&&!item.glass.usage)reasons.push('유리제 용도 확인 필요'); // 공통 규칙: 재질 구분(유리제)
+  return {stage:owner.materialStage,owner,reasons};
+}
+// 제조업소: 서류 주소 ↔ 등록 공장 주소, 과거 신고 코드, 화주 설정 prefer_past_factory_code
+function judgeFactory(item){
+  const s=cargoFor(item),r=rules(s.shipper);
+  const cands=DEMO.factories.filter(f=>normalize(f.name)===normalize(s.maker));
+  const addrMatch=cands.find(f=>f.address===s.docAddress);
+  const past=item.pastFactory;
+  // 순서(11/25 결정, 기존 choose_factory): ① 서류 주소 → ② 같은 모델 과거 신고 코드 → ③ 빈칸 + 선택지
+  // A사 prefer_past_factory_code: 과거 코드를 먼저 쓰고, 이 경우 주소 다름 경고는 하지 않음(화주 요청 예외)
+  let chosen=null,how='',reasons=[];
+  if(r.prefer_past_factory_code&&past){
+    chosen=past;how='과거 신고 코드 우선(prefer_past_factory_code · 화주 요청 예외)';
+  }else if(addrMatch){
+    chosen=addrMatch.code;how='① 서류 주소 일치';
+    if(past&&past!==addrMatch.code)reasons.push('주소로 고른 공장이 과거 신고 공장('+past+')과 다름 · 확인 필요');
+  }else if(past){
+    chosen=past;how='② 서류 주소로 확인 안 됨 → 과거 신고 공장';reasons.push('과거 신고 공장 사용 · 확인 필요');
+  }else{
+    reasons.push('제조업소 확인 필요');how='③ 서류 주소와 일치하는 등록 공장 없음 · 과거 신고 없음 → 선택 필요';
+  }
+  const list=cands.map(f=>{
+    const tags=[];
+    tags.push(f.address===s.docAddress?['서류 주소와 같음','ok']:['주소 다름','warn']);
+    if(f.code===past)tags.push(['과거 신고 코드','']);
+    if(f.name!==s.maker)tags.push(['표기 차이(공백)만 다름','']);
+    return {f,tags};
+  });
+  return {list,chosen,how,reasons,fuzzy:cands.some(f=>f.name!==s.maker)&&s.shipper==='B'};
+}
+// 실적: 제조국·해외제조업소·재질·바탕색상·기간 (별표 10 제4호 마목)
+function judgeRecord(item,fac){
+  const s=cargoFor(item),r=rules(s.shipper),base=s.declared||s.received; // 기준일 = 신고일(11/25 결정, 없으면 오늘). 시연 데이터는 신고일이 없어 반입일로 대신 · 확인 필요
+  const owner=materialOwner(item),mats=materialList(item);
+  const models=[item.model,owner.model];
+  const rows=DEMO.records.filter(x=>models.includes(x.model)||(x.factory===fac.chosen&&mats.every(m=>recMaterials(x).includes(m))));
+  const checked=rows.map(x=>{
+    // 같은 품명: 같은 모델이거나 같은 품명 (기존 covers_product, 백엔드 record_pick과 같음)
+    const sameProduct=models.includes(x.model)||x.name===owner.name.replace(/\s*\(.*$/,'');
+    const checks=[['공장',!!fac.chosen&&x.factory===fac.chosen],['같은 품명',sameProduct],['재질 모두 포함',mats.every(m=>recMaterials(x).includes(m))]];
+    checks.push(r.color_check?['바탕색상',x.inner===item.color.inner]:['바탕색상 비교 안 함(color_check 꺼짐)',true]);
+    checks.push(['기간',x.expired>=base]);
+    return {r:x,checks,ok:checks.every(c=>c[1])};
+  });
+  const ok=checked.filter(c=>c.ok),reasons=[];let status,picked=null;
+  if(!fac.chosen){status='제조업소 확정 후 대조';reasons.push('실적 대조 대기');}
+  else if(item.glass&&!item.glass.usage){status='유리제 용도 확인 후 대조';}
+  else if(ok.length){
+    // 재질을 가장 많이 포함 → 같으면 최신 승인일 (기존 choose_approval, 11/25 결정)
+    picked=[...ok].sort((a,b)=>recMaterials(b.r).length-recMaterials(a.r).length||b.r.approved.localeCompare(a.r.approved))[0].r;
+    status=(ok.length>1?'후보 '+ok.length+'건 중 재질 가장 많이 포함(같으면 최신) 실적 자동 선택':'후보 1건 · 자동 선택')+(owner!==item?' · 본품 '+owner.model+' 실적 사용(spare_same_as_model)':'');
+  }
+  else if(r.color_check&&checked.some(c=>c.checks.every(([k,v])=>v||k==='바탕색상'))){
+    // 색상만 안 맞음: 가장 포괄적인 실적 + 추가 정밀검사 필요 (기존 color_check)
+    const near=checked.filter(c=>c.checks.every(([k,v])=>v||k==='바탕색상')).sort((a,b)=>recMaterials(b.r).length-recMaterials(a.r).length||b.r.approved.localeCompare(a.r.approved));
+    picked=near[0].r;status='색상이 맞는 실적 없음 · 가장 포괄적인 실적 사용';reasons.push(near[0].r.record+' 실적과 바탕색상이 달라 추가 정밀검사 필요');
+  }
+  else if(checked.some(c=>c.checks.every(([k,v])=>v||k==='기간'))){status='조건이 맞는 실적이 모두 만료 · 정밀검사 대상';reasons.push('실적 만료');}
+  else {status=item.newProduct?'적용 가능한 실적 없음 · 정밀검사 대상 확인 필요':'적용 가능한 실적 없음 · 정밀검사 대상';reasons.push('실적 없음');}
+  return {checked,status,picked,reasons,base};
+}
+function judge(item){
+  const m=judgeMaterial(item),f=judgeFactory(item),r=judgeRecord(item,f);
+  return {material:m,factory:f,record:r,reasons:[...f.reasons,...m.reasons,...r.reasons]};
+}
+// 신고 묶음: 모선(화물관리번호 앞 11자리) · 제조업소 · 재질 (+ group_by_color)
+function groupDeclarations(items){
+  const groups=new Map();
+  for(const item of items){
+    const s=cargoFor(item),r=rules(s.shipper),j=judge(item);
+    const keyParts=[['모선',s.vessel+' ('+s.mrn[0]+')'],['제조업소',j.factory.chosen||'미확정'],['재질',materialList(item).join(', ')]];
+    if(r.group_by_color)keyParts.push([r.color_basis||'색상',item.color.inner]);
+    const key=JSON.stringify(keyParts);
+    if(!groups.has(key))groups.set(key,{keyParts,shipper:s.shipper,items:[]});
+    groups.get(key).items.push({item,j});
+  }
+  const out=[];
+  for(const g of groups.values()){
+    const r=rules(g.shipper),size=r.max_rows_per_declaration||Infinity;
+    for(let i=0;i<g.items.length;i+=size){
+      const part=g.items.slice(i,i+size);
+      const recs=[...new Set(part.map(x=>x.j.record.picked?.record).filter(Boolean))];
+      const warnings=[];
+      if(g.items.length>size)warnings.push('최대 '+size+'행으로 끊음');
+      if(r.one_record_per_declaration&&recs.length>1)warnings.push('한 신고에 실적 1개 규칙 위배(실적 '+recs.length+'개)');
+      out.push({...g,items:part.map(x=>x.item),recs,warnings});
+    }
+  }
+  return out;
+}
+
+/* ===================== 검역이력 표 ===================== */
+// 검역이력은 화주별 시트(A기업 탭 · B기업 탭)처럼 나눈다. 체크·상세 선택도 화주 탭마다 따로 둔다.
+const selected={A:new Set(),B:new Set()};
+const activeBy={A:'P01',B:'P03'};
+let tab='records',shipperTab='A';
+const sel=()=>selected[shipperTab];
+const shipperProducts=()=>DEMO.products.filter(p=>cargoFor(p).shipper===shipperTab);
+// B사 탭은 재질 다음에 색상 열이 있다 (AGENTS 5-5)
+const colsFor=shipper=>{const c=[...historyCols];if(shipper==='B')c.splice(c.indexOf('재질 (재질 코드명, 가나다순)')+1,0,'색상');return c;};
+const historyCols=['B/L Number','반입지 코드','반입일','입항일','선적일','모선명','도착항 코드','선적항 코드','제조사','화물관리번호','한글 제품명(모델넘버)','입수','카톤 수','순중량','가격(USD)','USD 환율','CI 통화','가격(수출국)','CI 통화 환율','재질 (재질 코드명, 가나다순)','실적접수번호 (승인일)','영문 제품명','재질 구분 (깊이·용량·용도)','검역 신고일자','승인번호','비고','모델 자료'];
+const td=(v,k='')=>'<td class="'+k+'">'+(v===''||v==null?dash:v)+'</td>';
+function productRow(item){
+  const s=cargoFor(item),j=judge(item);
+  const rec=j.record.picked?esc(j.record.picked.record)+' ('+esc(j.record.picked.approved)+')':'';
+  const flag=j.reasons.length?'<span class="item-flag">'+esc(j.reasons.join(' · '))+'</span>':'';
+  return '<tr data-id="'+item.id+'" class="'+(item.id===activeBy[shipperTab]?'active':'')+'">'+
+    td('<input type="checkbox" aria-label="'+esc(item.name)+' 선택" '+(sel().has(item.id)?'checked':'')+'>','check')+
+    td(esc(s.bl),'mono')+td(esc(s.warehouse))+td(s.received)+td(s.arrival)+td(s.shipped)+td(esc(s.vessel))+td(esc(s.port))+td(esc(s.origin))+td(esc(s.maker)+(j.factory.chosen?' ('+esc(j.factory.chosen)+')':''))+td(esc(s.mrn.join('-')),'mono')+
+    td('<button class="row-link" type="button">'+esc(item.name)+'</button>'+flag)+td(num(item.pack),'number')+td(num(item.cartons),'number')+td(num(item.weight),'number')+td(money(item.usd),'number')+
+    td('')+td('')+td(money(item.value),'number')+td('')+
+    td(esc(materialList(item).join(', ')),'wrap')+(s.shipper==='B'?td(esc(colorText(item.color)),'wrap'):'')+td(rec,'mono')+td(esc(item.english))+td(esc(item.spec))+td('')+td('')+td(item.spare?'부분품 · 본품 '+esc(item.spareOf):'')+
+    td('<button type="button" class="secondary" data-model-docs="'+item.id+'">'+esc(item.model)+'.xlsx</button>')+'</tr>';
+}
+function updateSelection(){
+  byId('count').textContent='선택 품목 '+sel().size+'개 · '+DEMO.shipperRules[shipperTab].name;
+  byId('make-sheet').checked=false;
+}
+
+/* ===================== 상세 패널 ===================== */
+function renderDetail(){
+  const item=DEMO.products.find(p=>p.id===activeBy[shipperTab]),s=cargoFor(item),j=judge(item),shipper=DEMO.shipperRules[s.shipper];
+  const owner=j.material.owner;
+  const stageHtml='<div class="steps">'+STAGES.map(([k,l])=>'<span class="step '+(k===j.material.stage?'on':'')+'">'+l+'</span>').join('')+'</div>';
+  const partsHtml='<ul class="list">'+owner.parts.map(p=>'<li><b>'+esc(p.part)+'</b>원문 "'+esc(p.raw)+'" · '+esc(p.source)+'<br>코드 후보: '+(p.candidate?esc(p.candidate):'확인 필요')+(p.ai?'<span class="tag warn">AI 후보 · 담당자 확인</span>':'')+(p.note?'<br><span class="muted">'+esc(p.note)+'</span>':'')+'</li>').join('')+'</ul>';
+  const spareHtml=owner!==item?'<p class="note">부분품 → 본품 '+esc(owner.model)+'과 같은 재질로 신고(spare_same_as_model). 이 품목 자료: '+item.parts.map(p=>esc(p.part+' '+p.raw)).join(', ')+'</p>':'';
+  const glassHtml=item.glass?'<p class="muted">유리제 구분: 용도 '+(item.glass.usage||'<b>미기재</b>')+' · 용량 '+esc(item.glass.volume)+'</p>':'';
+  const materialCard='<p class="muted">판단 단계</p>'+stageHtml+spareHtml+partsHtml+glassHtml+'<p class="muted" style="margin-top:6px">사진은 부위 확인용이며 사진만으로 재질을 확정하지 않습니다.</p>';
+  const f=j.factory;
+  const facHtml='<p class="muted">서류: '+esc(s.maker)+' · '+esc(s.docAddress)+'</p><ul class="list">'+f.list.map(({f:x,tags})=>'<li><b>'+esc(x.code)+' · '+esc(x.name)+(x.code===f.chosen?'<span class="tag ok">선택</span>':'')+'</b>'+esc(x.address)+' '+tags.map(([t,k])=>'<span class="tag '+k+'">'+esc(t)+'</span>').join('')+'</li>').join('')+'</ul>'+
+    '<p class="muted">판단: '+esc(f.how)+'</p>'+
+    (f.fuzzy&&f.chosen?'<p class="muted">공백·기호를 뺀 이름과 주소가 같아 후보로 제시(AI/규칙 후보 · 담당자 확인).</p>':'')+
+    (f.reasons.length?'<p class="warning">'+(f.chosen?'과거 신고 코드('+esc(f.chosen)+')를 화주 요청 예외로 적용했지만 이번 서류 주소와 다릅니다. 담당자 확인이 필요합니다.':'과거 신고 코드('+esc(item.pastFactory)+')와 이번 서류 주소가 다릅니다. 이름만으로 확정하기 어려워 담당자가 실제 공장을 확인합니다.')+'</p>':'');
+  const R=j.record;
+  const recHtml='<p><b>'+esc(R.status)+'</b></p><p class="muted">비교 기준일 '+R.base+' (예시: 반입일 · 실제 비교 날짜 확인 필요) · 유효 '+DEMO.settings.record_valid_years+'년</p>'+
+    (R.checked.length?'<ul class="list">'+R.checked.map(({r,checks,ok})=>{const ex=r.expired<R.base;return '<li><b class="'+(ex?'struck':'')+'">'+esc(r.record)+(R.picked===r?'<span class="tag ok">선택</span>':ok?'<span class="tag">적용 가능</span>':'<span class="tag warn">제외</span>')+'</b>'+esc(r.factory)+' · 승인 '+r.approved+' · 만료 '+r.expired+' · '+esc(recMaterials(r).join(', '))+' · '+esc(colorText(r))+'<br>'+checks.map(([l,v])=>esc(l)+(v?' ✓':' ✗')).join(' · ')+(ex?'<br><span class="muted">만료 실적은 과거 재질을 보는 참고 자료로만 씁니다.</span>':'')+'</li>';}).join('')+'</ul>':'<p class="muted">연결된 실적 이력이 없습니다.</p>')+
+    '<p class="muted" style="margin-top:6px">재질 포함 관계는 후보 검토의 단서일 뿐, 한 사례로 모든 품목에 같은 실적을 자동 확정하지 않습니다.</p>';
+  byId('detail').innerHTML='<div class="detail-head"><div><p class="muted">'+esc(s.bl)+' · '+esc(s.mrn.join('-'))+' · 화주 '+esc(shipper.name)+' (ID '+s.shipper+')</p><h2>'+esc(item.name)+'</h2></div><div class="detail-actions"><span class="badge '+(j.reasons.length?'warn':'')+'" id="detail-badge">'+esc(j.reasons.join(' · ')||'확인 완료')+'</span><button type="button" class="secondary" id="jump-history">연결 실적 보기</button><button type="button" class="secondary" id="open-model-docs">모델 자료 보기</button></div></div>'+
+    '<div class="columns"><section class="card" id="card-material"><h3>재질 근거</h3>'+materialCard+'</section><section class="card" id="card-factory"><h3>제조업소</h3>'+facHtml+'</section><section class="card" id="card-record"><h3>정밀검사 실적</h3>'+recHtml+'</section></div>';
+  byId('jump-history').onclick=()=>openItemHistory(item);
+  byId('open-model-docs').onclick=()=>showModelDocs(item);
+}
+function render(){
+  const isHistory=tab==='history';
+  for(const k of ['A','B'])byId('records-tab-'+k).setAttribute('aria-selected',String(!isHistory&&shipperTab===k));
+  byId('records').setAttribute('aria-labelledby','records-tab-'+shipperTab);
+  byId('history-tab').setAttribute('aria-selected',String(isHistory));
+  for(const id of ['record-toolbar','records','detail'])byId(id).hidden=isHistory;
+  byId('history').hidden=!isHistory;
+  if(isHistory){renderHistory();return;}
+  // 체크 열 맨 위 칸 = 품목사항 생성 버튼 (기존 시트 방식)
+  byId('columns').innerHTML='<tr><th class="check"><label style="display:grid;gap:3px;justify-items:center;font-size:11px;cursor:pointer"><input type="checkbox" id="make-sheet" aria-label="품목사항 생성">품목사항<br>생성</label></th>'+colsFor(shipperTab).map(t=>'<th>'+esc(t)+'</th>').join('')+'</tr>';
+  byId('rows').innerHTML=shipperProducts().map(productRow).join('');
+  updateSelection();renderDetail();
+}
+function setMessage(text){byId('toolbar-msg').textContent=text;}
+
+/* ===================== 실적 탭 · 화주 규칙 ===================== */
+const historyFilters=[['filter-maker','maker'],['filter-material','group'],['filter-model','model']];
+function openItemHistory(item){
+  for(const [id] of historyFilters)byId(id).value='';
+  const owner=materialOwner(item);
+  const rec=DEMO.records.find(r=>r.model===owner.model);
+  if(rec){byId('filter-maker').value=rec.maker;byId('filter-model').value=owner.model;}
+  byId('rule-party').value='auto';
+  tab='history';render();
+}
+function renderRules(visible){
+  const sel=byId('rule-party').value,auto=sel==='auto';
+  const models=new Set(visible.map(r=>r.model));
+  const parties=[...new Set(DEMO.products.filter(p=>models.has(p.model)).map(p=>cargoFor(p).shipper))];
+  const party=auto?(parties.length===1?parties[0]:null):sel;
+  const cfg=DEMO.shipperRules[party];
+  byId('rules-title').textContent=cfg?cfg.name+' 특이사항':'화주별 특이사항';
+  byId('rule-source').textContent=cfg?(auto?'실적 필터와 연결된 화주':'직접 선택한 화주')+' · 가상 설정 · 기능 4에서 불러올 값':'연결 화주가 여러 곳이거나 확인되지 않음';
+  byId('rule-content').innerHTML=cfg?DEMO.ruleCatalog.map(([key,title,desc])=>{
+    const v=cfg.values[key];
+    const ctrl=typeof v==='boolean'?'<label class="switch"><input type="checkbox" data-rule="'+party+':'+key+'" '+(v?'checked':'')+'> 사용 (시연용 전환 · 저장은 기능 4)</label>':'<p class="muted">값: '+(v==null?'없음':esc(v))+'</p>';
+    return '<section class="category"><h3>'+esc(title)+'</h3><p class="muted mono">'+esc(key)+'</p><p class="muted">'+esc(desc)+'</p>'+ctrl+'</section>';
+  }).join(''):'<p class="rule-summary">표시할 화주를 선택하거나 제조사를 좁혀 주세요.</p>';
+}
+function renderHistory(){
+  const visible=DEMO.records.filter(r=>historyFilters.every(([id,key])=>!byId(id).value||r[key]===byId(id).value));
+  renderRules(visible);
+  byId('history-count').textContent='실적 '+visible.length+'건';
+  const today=DEMO.cargo[0].received; // 예시 기준일
+  byId('history-rows').innerHTML=visible.length?visible.map(r=>{const ex=r.expired<today;return '<tr>'+td(esc(r.name))+td(esc(recMaterials(r).join(', ')))+td(esc(r.part))+td(esc(colorText(r)),'wrap')+td('<span class="'+(ex?'struck':'')+'">'+esc(r.record)+'</span>','mono')+td(r.applied)+td(r.approved)+td('<span class="'+(ex?'struck':'')+'">'+r.expired+'</span>')+td(esc(r.note))+'</tr>';}).join(''):'<tr><td class="empty" colspan="9">필터 조건에 해당하는 실적이 없습니다.</td></tr>';
+}
+
+/* ===================== 엑셀(xlsx) 생성 · 시안 코드 재사용 ===================== */
+const LETTERS='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const encoder=new TextEncoder();
+const crcTable=Uint32Array.from({length:256},(_,i)=>{let v=i;for(let b=0;b<8;b++)v=(v>>>1)^((v&1)?0xedb88320:0);return v>>>0;});
+function crc32(bytes){let c=0xffffffff;for(const x of bytes)c=(c>>>8)^crcTable[(c^x)&255];return (c^0xffffffff)>>>0;}
+function zipStored(files){
+  const local=[],central=[];let offset=0,clen=0;
+  for(const [fileName,contents] of Object.entries(files)){
+    const name=encoder.encode(fileName),bytes=encoder.encode(contents),crc=crc32(bytes);
+    const l=new Uint8Array(30),v=new DataView(l.buffer);
+    v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x0800,true);v.setUint16(12,33,true);v.setUint32(14,crc,true);v.setUint32(18,bytes.length,true);v.setUint32(22,bytes.length,true);v.setUint16(26,name.length,true);
+    local.push(l,name,bytes);
+    const c=new Uint8Array(46),d=new DataView(c.buffer);
+    d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x0800,true);d.setUint16(14,33,true);d.setUint32(16,crc,true);d.setUint32(20,bytes.length,true);d.setUint32(24,bytes.length,true);d.setUint16(28,name.length,true);d.setUint32(42,offset,true);
+    central.push(c,name);offset+=30+name.length+bytes.length;clen+=46+name.length;
+  }
+  const end=new Uint8Array(22),f=new DataView(end.buffer);
+  f.setUint32(0,0x06054b50,true);f.setUint16(8,central.length/2,true);f.setUint16(10,central.length/2,true);f.setUint32(12,clen,true);f.setUint32(16,offset,true);
+  return new Blob([...local,...central,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function makeWorkbook({title,sheetName,headers,rows,notice,note,widths}){
+  const main='http://schemas.openxmlformats.org/spreadsheetml/2006/main',rel='http://schemas.openxmlformats.org/officeDocument/2006/relationships',pkg='http://schemas.openxmlformats.org/package/2006/relationships',xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const all=[[title],[notice],headers,...rows,[note]],last=LETTERS[headers.length-1];
+  const cols=widths.map((w,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>').join('');
+  const data=all.map((vals,i)=>{const st=i===0?2:i===2?1:0;return '<row r="'+(i+1)+'">'+vals.map((v,j)=>{const ref=LETTERS[j]+(i+1);if(typeof v==='number')return '<c r="'+ref+'" s="'+st+'"><v>'+v+'</v></c>';if(v==='')return '<c r="'+ref+'" s="'+st+'"/>';return '<c r="'+ref+'" s="'+st+'" t="inlineStr"><is><t>'+esc(v)+'</t></is></c>';}).join('')+'</row>';}).join('');
+  return zipStored({
+    '[Content_Types].xml':xml+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    '_rels/.rels':xml+'<Relationships xmlns="'+pkg+'"><Relationship Id="rId1" Type="'+rel+'/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml':xml+'<workbook xmlns="'+main+'" xmlns:r="'+rel+'"><sheets><sheet name="'+esc(sheetName)+'" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels':xml+'<Relationships xmlns="'+pkg+'"><Relationship Id="rId1" Type="'+rel+'/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'+rel+'/styles" Target="styles.xml"/></Relationships>',
+    'xl/worksheets/sheet1.xml':xml+'<worksheet xmlns="'+main+'"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'+cols+'</cols><sheetData>'+data+'</sheetData><mergeCells count="3"><mergeCell ref="A1:'+last+'1"/><mergeCell ref="A2:'+last+'2"/><mergeCell ref="A'+all.length+':'+last+all.length+'"/></mergeCells></worksheet>',
+    'xl/styles.xml':xml+'<styleSheet xmlns="'+main+'"><fonts count="3"><font><sz val="11"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font><font><b/><sz val="16"/><name val="맑은 고딕"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2459D3"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
+  });
+}
+function renderSheet({headers,rows,limits}){
+  return '<div class="scroll"><table class="sheet-grid"><thead><tr><th class="coordinate"></th>'+headers.map((_,i)=>'<th class="coordinate">'+LETTERS[i]+'</th>').join('')+'</tr><tr><th class="coordinate">3</th>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map((vals,r)=>'<tr><th class="coordinate">'+(r+4)+'</th>'+vals.map((v,c)=>{const over=limits&&limits[c]&&String(v).length>limits[c];return '<td class="'+(v===''?'empty-cell':typeof v==='number'?'number':'')+(over?' over':'')+'">'+(v===''?'—':esc(v))+'</td>';}).join('')+'</tr>').join('')+'</tbody></table></div>';
+}
+function download(example){
+  const href=URL.createObjectURL(makeWorkbook(example)),a=document.createElement('a');
+  a.href=href;a.download=example.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),1000);
+}
+
+/* ===================== 품목사항(기구용기검역) ===================== */
+const EXPORT_TITLE='품목사항(기구용기검역)';
+// 유니패스 품목사항 시트 열 · 숫자 = 최대 글자 수 (RULES 11-10)
+// 머리글 = 기존 양식 글자 그대로(괄호 안 = 최대 글자 수)
+const ITEM_COLS=[['제품명(100)',100],['한글명(100)',100],['대표품목여부(Y or N)',1],['수량(10)',10],['순중량(10)',10],['과세가격(22)',22],['화물관리번호1(11)',11],['화물관리번호2(4)',4],['화물관리번호3(4)',4],['가공기간시작일(8)',8],['가공기간종료일(8)',8],['소비기한시작일(8)',8],['소비기한종료일(8)',8],['도축기간시작일(8)',8],['도축기간종료일(8)',8]];
+// 과세가격 = 가격(USD) 그대로 (RULES 11-10, 회사 자료로 확인 2026-11-25)
+// 수량 = 카톤 수 (11/25 확정: 유니패스 신고 기록이 CT 기준, 부분품도 카톤 수)
+let currentExport=null,dialogKind=null;
+function itemSheetRows(items){
+  return items.map((it,idx)=>{const mrn=cargoFor(it).mrn;return [it.english,it.name,idx===0?'Y':'N',it.cartons,it.weight,it.usd,mrn[0],mrn[1],mrn[2],'','','','','',''];});
+}
+// 한 신고건 검사 (RULES 11-6·11-10, 기존 check_one_declaration) · 11/25 결정: 재질은 꼼꼼히 → 경고가 아니라 막기
+// - 반드시 조건: 같은 모선(화물관리번호 앞 11자리) · 같은 제조업소 코드 → 다르면 만들지 않음
+// - 재질·색상이 다른 행을 합칠 때(자동 묶음이 2개 이상)만 아래를 검사해 통과 못 하면 만들지 않음
+//   ① 모든 행의 재질 확정(자료 추가 필요·AI 후보 미확인·유리제 용도 없음 X)
+//   ② 모든 행에 자기 재질을 다 품는 유효 실적 (색상이 안 맞아 추가 정밀검사가 필요한 실적은 제외)
+//   ③ one_record_per_declaration 화주(A사): 실적 하나가 모든 재질을 품음 (B사는 끔 · 실적 여러 개 허용)
+//   통과하면 만들되 "담당자가 합친 신고" 안내
+// - 자동 묶음 1개면 위 ①~③ 없이 만든다(신규 제품 정밀검사 신청에도 품목사항이 필요). 확인 필요 항목은 따로 표시
+// - 확인 필요: 정밀검사 대상(실적 없음) 품목과 실적 있는 품목을 한 신고에 섞어도 되는지 → 지금은 막음
+function declarationCheck(items){
+  const block=[],warn=[];
+  const vessels=new Set(items.map(it=>cargoFor(it).mrn[0]));
+  if(vessels.size>1)block.push('모선 다름('+[...vessels].join(', ')+')');
+  const js=items.map(it=>[it,judge(it)]);
+  const known=new Set(js.map(([,j])=>j.factory.chosen).filter(Boolean));
+  if(known.size>1)block.push('제조업소 코드 다름('+[...known].join(', ')+')');
+  if(js.some(([,j])=>!j.factory.chosen))block.push('제조업소 미확정 행 있음');
+  const groups=groupDeclarations(items);
+  if(block.length||groups.length<2)return {block,warn,groups,merged:false};
+
+  const diff=[];const g0=groups[0].keyParts;
+  g0.forEach(([k],i)=>{if(i>1&&new Set(groups.map(g=>g.keyParts[i]?.[1])).size>1)diff.push(k);});
+  // ① 재질 확정
+  const unsure=js.filter(([,j])=>j.material.reasons.length).map(([it,j])=>it.model+'('+j.material.reasons.join(', ')+')');
+  if(unsure.length)block.push('재질 미확정: '+unsure.join(' / '));
+  // ② 행마다 유효 실적
+  const noRec=js.filter(([,j])=>!j.record.picked).map(([it,j])=>it.model+'('+j.record.status+')');
+  if(noRec.length)block.push('실적 없는 행: '+noRec.join(' / '));
+  // 색상이 안 맞아 추가 정밀검사가 필요한 실적은 실제로 쓸 수 없는 실적으로 본다
+  const colorFail=js.filter(([,j])=>j.record.picked&&j.record.reasons.some(x=>x.includes('추가 정밀검사'))).map(([it,j])=>it.model+'('+j.record.picked.record+' 바탕색상 다름)');
+  if(colorFail.length)block.push('쓸 수 없는 실적: '+colorFail.join(' / '));
+  // ③ A사: 실적 하나가 모든 재질
+  const r=rules(cargoFor(items[0]).shipper);
+  const recs=[...new Set(js.map(([,j])=>j.record.picked).filter(Boolean))];
+  const all=[...new Set(items.flatMap(it=>materialList(it)))].sort((a,b)=>a.localeCompare(b,'ko'));
+  if(!block.length&&r.one_record_per_declaration){
+    const cover=recs.find(x=>all.every(m=>recMaterials(x).includes(m)));
+    if(!cover)block.push('실적 하나가 모든 재질('+all.join(', ')+')을 포함하지 않음 (one_record_per_declaration) → 나누거나 포괄 실적 확인');
+    else if(recs.length>1)warn.push('실적이 '+recs.length+'개지만 '+cover.record+' 하나가 모든 재질을 포함 → '+cover.record+'로 맞추는 것 확인');
+  }
+  if(!block.length){
+    warn.unshift('자동 묶음 '+groups.length+'개('+(diff.join('·')||'기준')+' 다름)를 담당자가 합친 신고 1건으로 봄 · 재질·실적 검사 통과');
+    if(!r.one_record_per_declaration&&recs.length>1)warn.push('실적번호 '+recs.length+'개 함께 입력('+recs.map(x=>x.record).join(', ')+') · 이 화주는 허용');
+    js.filter(([,j])=>j.record.reasons.length).forEach(([it,j])=>warn.push(it.model+': '+j.record.reasons.join(', ')));
+  }
+  return {block,warn,groups,merged:true};
+}
+function openItemSheet(){
+  const chosen=shipperProducts().filter(p=>sel().has(p.id));
+  if(!chosen.length){byId('make-sheet').checked=false;setMessage('선택한 행이 없습니다. 만들 행을 먼저 체크하세요.');return;}
+  const rows=itemSheetRows(chosen),limits=ITEM_COLS.map(c=>c[1]);
+  const over=[];rows.forEach((r,ri)=>r.forEach((v,ci)=>{if(String(v).length>limits[ci])over.push(chosen[ri].model+' '+ITEM_COLS[ci][0]);}));
+  const pending=chosen.map(it=>[it,judge(it).reasons]).filter(([,r])=>r.length);
+  const dc=declarationCheck(chosen),groups=dc.groups,blocked=dc.block.length>0;
+  const bls=[...new Set(chosen.map(it=>cargoFor(it).bl))];
+  const spareNotes=chosen.filter(it=>it.spare&&rules(cargoFor(it).shipper).merge_spare_parts).map(it=>esc(it.model)+' → 본품 '+esc(it.spareOf));
+  currentExport={title:EXPORT_TITLE,sheetName:EXPORT_TITLE,name:EXPORT_TITLE+'.xlsx',headers:ITEM_COLS.map(c=>c[0]),rows,limits,widths:ITEM_COLS.map(([h,n])=>Math.min(32,Math.max(10,h.length*2+2,n>20?28:0))),
+    notice:'예시 · 유니패스 품목사항 열 기준 · 실제 업로드 템플릿(헤더 위치·필수값) 확인 필요',note:'수량 = 카톤 수 · 과세가격 = 가격(USD) · 근거 없는 칸은 공란'};
+  const groupHtml='<section class="group" id="group-preview"><h3>자동 신고 묶음 · '+groups.length+'건</h3><p class="muted">기준: 동일 모선(화물관리번호 앞 11자리) · 제조업소 · 재질'+(groups.some(g=>rules(g.shipper).group_by_color)?' + 색상(group_by_color)':'')+'. 실적은 품목별로 연결되므로 한 신고건 안에서 실적번호가 다를 수 있습니다.</p><div class="scroll"><table><thead><tr><th>묶음</th><th>기준 값</th><th>품목</th><th>실적</th><th>근거·경고</th></tr></thead><tbody>'+
+    groups.map((g,i)=>'<tr><td>'+(i+1)+'</td><td class="wrap">'+g.keyParts.map(([k,v])=>esc(k)+' '+esc(v)).join(' · ')+'</td><td class="wrap">'+g.items.map(it=>esc(it.model)).join(', ')+'</td><td class="wrap">'+(g.recs.length?g.recs.map(esc).join(', '):dash)+'</td><td class="wrap">'+esc(['별지 제25호서식 유의사항 사목·카목(예시)',...g.warnings].join(' · '))+'</td></tr>').join('')+'</tbody></table></div></section>';
+  byId('dialog-title').textContent='품목사항 생성 확인';
+  byId('dialog-body').innerHTML='<p id="sheet-summary"><b id="sheet-count">'+chosen.length+'</b>개 품목 · B/L '+bls.map(esc).join(', ')+' · 신고건 '+groups.length+'건</p>'+
+    (blocked?'<p class="warning" id="group-warning">선택한 행이 한 신고건이 될 수 없어 만들지 않습니다('+esc(dc.block.join(' / '))+'). 행 체크는 그대로 두었습니다. 같은 모선·같은 제조업소의 행만 남기고 다시 시도하세요.</p>':'')+
+    (dc.warn.length?'<p class="note" id="merge-note">'+dc.warn.map(esc).join('<br>')+'</p>':'')+
+    (pending.length?'<p class="warning" id="pending-warning">확인 필요 '+pending.length+'건 · '+pending.map(([it,r])=>esc(it.model+' ('+r.join(', ')+')')).join(', ')+'</p>':'')+
+    (spareNotes.length?'<p class="note">A사 merge_spare_parts: '+spareNotes.join(', ')+' · 부분품 줄을 한 행으로 합치는 것은 행 구성(기능 1) 단계 규칙이라 여기서는 안내만 합니다.</p>':'')+
+    (over.length?'<p class="warning">글자 수 한도 초과: '+over.map(esc).join(', ')+'</p>':'')+
+    groupHtml+
+    '<section class="group"><div class="sheet-head"><h3>'+esc(currentExport.name)+' 미리보기</h3></div><p class="muted">시트명 '+esc(EXPORT_TITLE)+' · 대표품목은 첫 행만 Y · 과세가격 = 가격(USD) · 화물관리번호 11·4·4자리</p>'+renderSheet(currentExport)+'</section>'+
+    '<div class="actions" style="justify-content:flex-end;margin-top:14px"><button type="button" class="secondary" id="cancel-sheet">취소</button><button type="button" class="primary" id="confirm-sheet"'+(blocked?' disabled':'')+'>만들기</button></div>';
+  byId('cancel-sheet').onclick=()=>closeDialog();
+  byId('confirm-sheet').onclick=()=>{
+    if(blocked)return; // 모선·제조업소가 달라 한 신고건이 될 수 없으면 만들지 않음 (RULES 11-10)
+    download(currentExport);
+    const n=sel().size;sel().clear();
+    closeDialog();
+    setMessage(DEMO.shipperRules[shipperTab].name+' 품목사항 '+n+'행을 만들었습니다. 체크를 모두 풀었습니다.');
+  };
+  dialogKind='sheet';
+  if(!byId('dialog').open)byId('dialog').showModal();
+}
+function closeDialog(){if(byId('dialog').open)byId('dialog').close();dialogKind=null;if(tab==='records')render();}
+
+/* ===================== 모델 자료 (모델명.xlsx) ===================== */
+function showModelDocs(item){
+  const d=item.docs;
+  const rows=[
+    ['한글 라벨',d.label||'',d.label?'예시 문구':'원본 미첨부',d.label?'라벨의 재질 표시 문구':'한글 라벨 파일 확인 필요'],
+    ['재질증명서',d.certificate||materialList(item).join(', '),d.certificate?'예시 문구':'원본 미첨부',d.certificate?'증명서 재질 표기':'품목 재질 표시 · 증명서 확인 필요'],
+    ['제품 사진','','원본 미첨부','제품 전면 및 식품 접촉 부위 사진 확인 필요']
+  ];
+  const example={title:item.model,sheetName:item.model,name:item.model+'.xlsx',headers:['자료 구분','확인된 내용','자료 상태','비고'],rows,widths:[16,40,16,44],notice:'시연용 가상 데이터 · 실제 원본 문서는 첨부되지 않음',note:'실제 한글 라벨·재질증명서·현품사진 수령 후 모델별 파일에 추가'};
+  byId('dialog-title').textContent='모델 자료 · '+item.model;
+  byId('dialog-body').innerHTML='<p class="muted">한글 라벨·재질증명서·제품 사진을 확인하는 모델별 파일입니다. 품목 체크와 상관없이 열 수 있습니다.</p><section class="group"><div class="sheet-head"><h3>'+esc(example.name)+'</h3><button type="button" class="secondary" id="download-model">.xlsx 받기</button></div>'+renderSheet(example)+'</section>';
+  byId('download-model').onclick=()=>download(example);
+  dialogKind='model';
+  byId('dialog').showModal();
+}
+
+/* ===================== 이벤트 ===================== */
+for(const k of ['A','B'])byId('records-tab-'+k).onclick=()=>{tab='records';if(shipperTab!==k)setMessage('"—"는 값 없음(기능 1·2에서 채울 칸 또는 확인 필요).');shipperTab=k;render();};
+byId('history-tab').onclick=()=>{tab='history';render();};
+byId('rule-party').innerHTML='<option value="auto">실적 필터에 맞춰 표시</option>'+Object.entries(DEMO.shipperRules).map(([id,c])=>'<option value="'+id+'">'+esc(c.name)+'</option>').join('');
+byId('rule-party').value='auto';
+byId('rule-party').onchange=renderHistory;
+for(const [id,key] of historyFilters){
+  const vals=[...new Set(DEMO.records.map(r=>r[key]))].sort((a,b)=>a.localeCompare(b,'ko'));
+  byId(id).innerHTML='<option value="">전체</option>'+vals.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+  byId(id).onchange=renderHistory;
+}
+byId('reset-history').onclick=()=>{for(const [id] of historyFilters)byId(id).value='';byId('rule-party').value='auto';renderHistory();};
+byId('rule-content').addEventListener('change',e=>{
+  const key=e.target.dataset.rule;if(!key)return;
+  const [party,name]=key.split(':');DEMO.shipperRules[party].values[name]=e.target.checked;
+});
+byId('select-all').onclick=()=>{for(const p of shipperProducts())sel().add(p.id);render();};
+byId('clear-all').onclick=()=>{sel().clear();render();};
+byId('columns').addEventListener('change',e=>{if(e.target.id==='make-sheet'&&e.target.checked)openItemSheet();});
+byId('rows').addEventListener('change',e=>{
+  if(!e.target.matches('input[type=checkbox]'))return;
+  const id=e.target.closest('tr').dataset.id;
+  if(e.target.checked)sel().add(id);else sel().delete(id);
+  updateSelection();
+});
+byId('rows').addEventListener('click',e=>{
+  if(e.target.matches('input'))return;
+  const docs=e.target.closest('[data-model-docs]');
+  if(docs){showModelDocs(DEMO.products.find(p=>p.id===docs.dataset.modelDocs));return;}
+  const row=e.target.closest('tr');if(!row)return;
+  activeBy[shipperTab]=row.dataset.id;
+  for(const line of byId('rows').rows)line.classList.toggle('active',line===row);
+  renderDetail();
+});
+byId('dialog-close').onclick=()=>closeDialog();
+
+// 창을 닫으면(취소·닫기·ESC) 생성 칸 체크만 풀고 행 체크는 유지. [만들기] 후에는 행 체크도 모두 풀림
+byId('dialog').addEventListener('close',()=>{if(dialogKind){dialogKind=null;if(tab==='records')render();}}); // ESC로 닫은 경우
+render();
+</script>
+</body>
+</html>
