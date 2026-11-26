@@ -110,17 +110,17 @@ export default function HomePage() {
             <StatCard label={DASH.stats.factorySoon} value={factorySoon} hint={DASH.hints.soon} tone={factorySoon ? "warn" : "ok"} href="/registry/factories/" />
           </StatGrid>
 
-          <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.judge}</h3>
-          <StatGrid>
-            <StatCard label={DASH.stats.groups} value={decls?.length ?? null} hint={DASH.hints.groups} tone="info" href="/judge/" />
-            <StatCard label={DASH.stats.groupWarn} value={groupWarn} hint={DASH.hints.groupWarn} tone={groupWarn ? "danger" : "ok"} href="/judge/" />
-          </StatGrid>
-
           <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.list}</h3>
           <StatGrid>
             <StatCard label={DASH.stats.rows} value={badges?.total ?? null} tone="info" href="/history/" />
             <StatCard label={DASH.stats.needCheck} value={badges?.need_check ?? null} hint={DASH.hints.needCheck} tone={badges?.need_check ? "check" : "ok"} href="/history/review/" />
             <StatCard label={DASH.stats.ready} value={badges?.ready ?? null} hint={DASH.hints.ready} tone="ok" href="/history/" />
+          </StatGrid>
+
+          <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.judge}</h3>
+          <StatGrid>
+            <StatCard label={DASH.stats.groups} value={decls?.length ?? null} hint={DASH.hints.groups} tone="info" href="/judge/" />
+            <StatCard label={DASH.stats.groupWarn} value={groupWarn} hint={DASH.hints.groupWarn} tone={groupWarn ? "danger" : "ok"} href="/judge/" />
           </StatGrid>
 
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(260px, 1fr)", gap: space.md, alignItems: "start" }}>

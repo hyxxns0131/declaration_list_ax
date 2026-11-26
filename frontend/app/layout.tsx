@@ -1,4 +1,4 @@
-// 상단 탭: 홈 + 1 기업 설정 · 2 서류 등록·만료 알림 · 3 재질·실적 판단 · 4 검역 리스트 · 5 연결 설정(탭 순서 변경: HS 요청 11/25 21시) + 로그인 확인. PM만 수정 (AGENTS 4-3). 탭은 components/auth/AuthGate.tsx, 목록은 lib/nav.ts. 담당: KHS
+// 상단 탭: 홈 + 1 기업 설정 · 2 서류 등록·만료 알림 · 3 검역 리스트 · 4 재질·실적 판단 · 5 연결 설정(탭 순서 변경: 로직 점검 반영 11/25) + 로그인 확인. PM만 수정 (AGENTS 4-3). 탭은 components/auth/AuthGate.tsx, 목록은 lib/nav.ts. 담당: KHS
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 

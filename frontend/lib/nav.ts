@@ -1,5 +1,6 @@
 // 화면 길잡이: 상단 탭(홈 + 5개)과 탭별 사이드바 메뉴. 경로·순서는 이 파일 한 곳에서만 정한다. 담당: KHS
-// 탭 순서: 1 기업 설정(JUJ) → 2 서류 등록·만료 알림(YHS) → 3 재질·실적 판단(LSY) → 4 검역 리스트(KHS) → 5 연결 설정(KHS). 탭 순서 변경: HS 요청 11/25 21시
+// 탭 순서: 1 기업 설정(JUJ) → 2 서류 등록·만료 알림(YHS) → 3 검역 리스트(KHS) → 4 재질·실적 판단(LSY) → 5 연결 설정(KHS).
+// 데이터 흐름 순서(설정 → 실적 등록 → 검역이력 → 판단). 탭 순서 변경: 로직 점검 반영 11/25
 import { T } from "@/lib/text/common";
 
 export interface SideItem {
@@ -15,6 +16,9 @@ export interface Tab {
   owner: string;
   side: SideItem[];
 }
+
+/** 메인 화면 = 검역이력 표 (제안서 가이드라인 ④). 로그인 뒤·앱 이름 클릭·처음 연 홈에서 여기로 간다. 로직 점검 반영 11/25 */
+export const MAIN_PATH = "/history/";
 
 export const TABS: readonly Tab[] = [
   {
@@ -47,17 +51,6 @@ export const TABS: readonly Tab[] = [
     ],
   },
   {
-    key: "judge",
-    href: "/judge/",
-    label: T.tabs.judge,
-    owner: "LSY",
-    side: [
-      { href: "/judge/", label: T.side.judge.groups, icon: "▦" },
-      { href: "/judge/evidence/", label: T.side.judge.evidence, icon: "ⓘ" },
-      { href: "/judge/item-sheet/", label: T.side.judge.itemSheet, icon: "⇩" },
-    ],
-  },
-  {
     key: "list",
     href: "/history/",
     label: T.tabs.list,
@@ -66,6 +59,17 @@ export const TABS: readonly Tab[] = [
       { href: "/history/", label: T.side.list.table, icon: "▤" },
       { href: "/history/review/", label: T.side.list.review, icon: "?" },
       { href: "/history/upload/", label: T.side.list.upload, icon: "⇪" },
+    ],
+  },
+  {
+    key: "judge",
+    href: "/judge/",
+    label: T.tabs.judge,
+    owner: "LSY",
+    side: [
+      { href: "/judge/", label: T.side.judge.groups, icon: "▦" },
+      { href: "/judge/evidence/", label: T.side.judge.evidence, icon: "ⓘ" },
+      { href: "/judge/item-sheet/", label: T.side.judge.itemSheet, icon: "⇩" },
     ],
   },
   {

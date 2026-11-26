@@ -1,7 +1,7 @@
 "use client";
 // 로그인 확인: 로그인 안 했으면 /login으로 (DESIGN 2-1). 대시보드 틀(파란 바탕 위 큰 흰 판, 위 탭 홈+5개, 왼쪽 파란 사이드바 = 지금 탭의 세부 메뉴. DESIGN 8장 테마)도 여기서 그린다. 탭·메뉴 목록은 lib/nav.ts. 담당: KHS
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -9,7 +9,7 @@ import { ShipperBadge, ShipperGate } from "@/components/home/CurrentShipper";
 import { colors, font, panelRadius, sidebarCurve, space } from "@/components/ui/tokens";
 import { ApiError, tokenStore } from "@/lib/api/client";
 import { connections, me } from "@/lib/api/core";
-import { TABS, currentTab, isSideActive } from "@/lib/nav";
+import { MAIN_PATH, TABS, currentTab, isSideActive } from "@/lib/nav";
 import { T } from "@/lib/text/common";
 
 type State = "checking" | "in" | "error";
@@ -18,11 +18,13 @@ const FRAME = 28; // 파란 바탕과 흰 판 사이 여백
 const SIDE_W = 240;
 const RAIL_W = 72; // 닫힌 사이드바(아이콘만)
 const SIDEBAR_KEY = "dl_sidebar_open";
+const LANDED_KEY = "dl_landed"; // sessionStorage: 처음 화면 이동을 한 번만
 const EASE = "200ms ease";
 const HEADER_H = 76;
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isLogin = pathname.startsWith("/login");
   const [state, setState] = useState<State>("checking");
   const [name, setName] = useState("");
@@ -60,12 +62,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
         }
         setName(m.display_name);
         setState("in");
+        // 이 창에서 처음 연 화면이 홈이면 메인 화면(검역이력 표)으로. 그 뒤 [홈] 탭은 그대로 홈(전체 현황)
+        if (!window.sessionStorage.getItem(LANDED_KEY)) {
+          window.sessionStorage.setItem(LANDED_KEY, "1");
+          if (pathname === "/") router.replace(MAIN_PATH);
+        }
         connections() // 사이드바 아래 연결 막대: 마지막 검사 결과 기준(새 검사는 하지 않음)
           .then((c) => setConn({ ok: c.rows.filter((r) => r.last?.state === "ok").length, total: c.rows.length }))
           .catch(() => setConn(null));
       })
       .catch((e: unknown) => setState(e instanceof ApiError && e.status === 0 ? "error" : "checking"));
-  }, [isLogin, pathname]);
+  }, [isLogin, pathname, router]);
 
   if (isLogin) return <>{children}</>;
   if (state === "error") return <p style={{ padding: space.lg, color: "#fff" }}>{T.networkError}</p>;
@@ -110,7 +117,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             ☰
           </button>
           <Link
-            href="/"
+            href={MAIN_PATH}
             style={{
               width: SIDE_W - 56,
               flexShrink: 0,

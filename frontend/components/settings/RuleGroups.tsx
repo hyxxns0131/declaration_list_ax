@@ -99,8 +99,42 @@ function RuleInput({
       </span>
     );
   }
-  // select_list: 정렬 기준 — 지금은 '서류 순서'만
-  return <span style={{ color: colors.muted }}>{rule.options?.[0]?.label}</span>;
+  // select_list: 정렬 기준(앞이 우선). 비우면 서류 순서 (로직 점검 반영 11/25)
+  const list = Array.isArray(value) ? (value as string[]) : [];
+  const label = (v: string) => rule.options?.find((o) => o.value === v)?.label ?? v;
+  const rest = (rule.options ?? []).filter((o) => !list.includes(String(o.value)));
+  return (
+    <span style={{ display: "inline-flex", gap: space.xs, flexWrap: "wrap", alignItems: "center" }}>
+      {list.length === 0 && <span style={{ color: colors.muted }}>{SETTINGS.docOrder}</span>}
+      {list.map((v, i) => (
+        <span key={v} style={{ border: `1px solid ${colors.border}`, borderRadius: 4, padding: "0 4px" }}>
+          {i + 1}. {label(v)}{" "}
+          <button
+            type="button"
+            className="mini"
+            onClick={() => onChange(list.filter((x) => x !== v))}
+            aria-label={`${label(v)} ${SETTINGS.removeSort}`}
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      {rest.length > 0 && (
+        <select
+          value=""
+          onChange={(e) => e.target.value && onChange([...list, e.target.value])}
+          aria-label={rule.label}
+        >
+          <option value="">{SETTINGS.addSort}</option>
+          {rest.map((o) => (
+            <option key={String(o.value)} value={String(o.value)}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      )}
+    </span>
+  );
 }
 
 export function RuleGroups({
@@ -152,6 +186,11 @@ export function RuleGroups({
                   )}
                 </div>
                 <div style={{ fontSize: font.sm, color: colors.muted, marginLeft: 22 }}>{r.description}</div>
+                {SETTINGS.effects[r.key] && (
+                  <div style={{ fontSize: font.sm, color: colors.brand, marginLeft: 22 }}>
+                    {SETTINGS.effectLabel} {SETTINGS.effects[r.key]}
+                  </div>
+                )}
               </div>
             );
           })}

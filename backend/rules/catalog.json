@@ -12,7 +12,7 @@
            {"value": "CO", "label": "C/O"}, {"value": "INTAKE_LIST", "label": "입고리스트"}, {"value": "PHOTO", "label": "현품사진"}
          ]},
         {"key": "inbox", "type": "bool", "label": "드라이브 접수 폴더 자동 처리",
-         "description": "드라이브 접수 폴더에 올라온 서류를 자동으로 읽습니다(폴더 ID는 .env에만)."}
+         "description": "드라이브 접수 폴더의 '{화주}/새 서류/' 안 B/L 폴더를 [새로고침]·[드라이브 접수 폴더에서 가져오기] 때 읽어 검역이력 행을 만듭니다(폴더 ID는 .env에만)."}
       ]
     },
     {
@@ -57,14 +57,14 @@
          "description": "색상(기준: 아래 색상 기준)이 다르면 신고건을 나눕니다."},
         {"key": "color_basis", "type": "select", "label": "색상 기준", "proposal": true,
          "description": "신고건을 나눌 때 보는 색입니다.",
-         "options": [{"value": null, "label": "없음"}, {"value": "내색", "label": "내색"}, {"value": "외색", "label": "외색"}]},
+         "options": [{"value": null, "label": "전체(내색+외색)"}, {"value": "내색", "label": "내색"}, {"value": "외색", "label": "외색"}]},
         {"key": "one_record_per_declaration", "type": "bool", "label": "한 신고에 실적 1개",
          "description": "끄면 한 신고에 실적번호를 여러 개 허용합니다."},
         {"key": "max_rows_per_declaration", "type": "int", "label": "신고당 최대 행 수", "proposal": true,
          "description": "비우면 제한이 없습니다."},
         {"key": "sort_by", "type": "select_list", "label": "정렬 기준", "proposal": true,
-         "description": "신고건 안의 행 순서입니다(비우면 서류 순서).",
-         "options": [{"value": "", "label": "서류 순서"}]}
+         "description": "신고건 안의 행 순서와 신고건 순서입니다. 앞 기준이 우선이고, 비우면 서류 순서입니다.",
+         "options": [{"value": "model", "label": "모델"}, {"value": "name_ko", "label": "한글 제품명"}, {"value": "bl", "label": "B/L 번호"}, {"value": "material", "label": "재질"}]}
       ]
     },
     {

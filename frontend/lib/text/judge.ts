@@ -1,13 +1,13 @@
 // 판단 근거·신고건·품목사항 문구 (DESIGN 5장). 담당: LSY
 export const JUDGE = {
-  // 탭 3 화면 (DESIGN 5장 맨 앞)
+  // 탭 4 화면 (DESIGN 5장 맨 앞)
   page: {
     title: "신고건 묶음",
     sub: "동일 모선·제조업소·재질로 묶은 신고건입니다. 묶음을 펼쳐 행별 재질·실적·제조사를 봅니다.",
     recompute: "다시 계산",
     recomputing: "계산 중…",
     recomputed: (n: number) => `신고건 ${n}묶음으로 다시 계산했습니다 (확정 값 유지)`,
-    empty: "신고건이 없습니다. 탭 4(검역 리스트)에서 서류를 올리면 묶음이 만들어집니다.",
+    empty: "신고건이 없습니다. 탭 3(검역 리스트)에서 서류를 올리면 묶음이 만들어집니다.",
     group: (i: number) => `신고건 ${i}`,
     cols: { vessel: "모선", factory: "제조업소", material: "재질", records: "실적", rows: "행 수", warnings: "경고" },
     rowCols: { model: "제품(모델)", material: "재질", record: "실적접수번호", maker: "제조사" },

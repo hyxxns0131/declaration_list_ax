@@ -2,6 +2,7 @@
 
 POST /reader/preview   파일 이름 → 서류 종류 미리 보기 (DESIGN 3-1-1 "인식한 서류")
 POST /reader/upload    서류 올리기 → 판독 → 검역이력 행까지 (응답: 만든·고친 row_id)
+POST /reader/inbox/scan?shipper_id=  드라이브 접수 폴더에서 가져오기(화주 설정 inbox, 미연결이면 이유)
 GET  /reader/documents/{doc_id}        판독 결과
 GET  /reader/documents/{doc_id}/file   원본 보기
 """
@@ -62,3 +63,8 @@ def document_file(doc_id: str) -> FileResponse:
     if base not in path.parents or not path.exists():
         raise AppError("not_found", "원본 파일이 없습니다.", 404)
     return FileResponse(path, filename=filename, content_disposition_type="inline")
+
+
+@router.post("/inbox/scan")
+def inbox_scan(shipper_id: str) -> dict:
+    return rows_service.scan_inbox(shipper_id)

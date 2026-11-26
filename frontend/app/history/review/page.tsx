@@ -1,5 +1,5 @@
 "use client";
-// 탭 4. 검역 리스트 › 확인 필요 (DESIGN 3-6). 확인할 행 목록 + 검수 패널. 배치만 한다. 담당: KHS
+// 탭 3. 검역 리스트 › 확인 필요 (DESIGN 3-6). 확인할 행 목록 + 검수 패널. 배치만 한다. 담당: KHS
 import { useCallback, useEffect, useState } from "react";
 
 import { ReviewPanel } from "@/components/review/ReviewPanel";

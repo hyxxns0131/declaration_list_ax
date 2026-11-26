@@ -1,9 +1,10 @@
 "use client";
-// 탭 4. 검역 리스트 › 검역이력 표 (DESIGN 3장). 부품 배치와 상태 연결만 한다 — 데이터는 각 담당 API에서. 담당: KHS
+// 탭 3. 검역 리스트 › 검역이력 표 (DESIGN 3장). 부품 배치와 상태 연결만 한다 — 데이터는 각 담당 API에서. 담당: KHS
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CellEditor } from "@/components/home/CellEditor";
 import { HistoryTable } from "@/components/home/HistoryTable";
+import { SummaryStrip } from "@/components/home/SummaryStrip";
 import { TopBar, type HomeFilter } from "@/components/home/TopBar";
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
 import { JudgeEvidence } from "@/components/judge/JudgeEvidence";
@@ -139,6 +140,7 @@ export default function HistoryPage() {
   return (
     <div>
       <PageHeader title={HOME.title} sub={HOME.sub} />
+      <SummaryStrip shipperId={shipperId} badges={badges} />
       <Card>
       <TopBar
         shippers={shippers}

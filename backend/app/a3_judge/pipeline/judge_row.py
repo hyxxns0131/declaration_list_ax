@@ -14,6 +14,7 @@ from app.a3_judge.material.codes import material_list
 from app.a3_judge.material.resolve import resolve_material
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
+from app.a3_judge.record_pick.multi_record import choose_split
 from app.a3_judge.record_pick.rank import choose_record, expiry_warning
 from app.a3_judge.spec_class.classify import auto_spec
 from app.core.schema.fields import Evidence
@@ -212,6 +213,12 @@ def _record(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext, address
         color_check=bool(ctx.rule("color_check", False)),
     )
     detail["candidates"] = choice.candidates
+    if not choice.value and choice.precise_needed and ctx.rule("split_record_by_part", False):
+        # 부품별 실적 분리(로직 점검 반영 11/25): 본체 + 뚜껑 등 부품 실적으로 재질을 모두 덮으면 그것을 쓴다
+        split = choose_split(ctx.records, mats, code, address, name_ko, ctx.today)
+        if split:
+            split.candidates = choice.candidates
+            choice = split
     if choice.value:
         rec = next(r for r in ctx.records if r.record_no == choice.record_no)
         e = Evidence(source="RULE", ref=choice.record_no, note=f"정밀검사 면제: {choice.note}")

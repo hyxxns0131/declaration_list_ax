@@ -1,5 +1,5 @@
 "use client";
-// 탭 3. 재질·실적 판단 › 품목사항 엑셀 (DESIGN 5-1). 신고건마다 [품목사항 만들기]. 배치만 한다. 담당: LSY
+// 탭 4. 재질·실적 판단 › 품목사항 엑셀 (DESIGN 5-1). 신고건마다 [품목사항 만들기]. 배치만 한다. 담당: LSY
 import { useCallback, useEffect, useState } from "react";
 
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
