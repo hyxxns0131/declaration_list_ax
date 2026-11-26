@@ -1,6 +1,6 @@
 """행 → 신고건 묶음. 키가 같은 행끼리, 최대 행 수에서 끊는다. 순수 함수. 담당: LSY [개선] A3-4"""
 
-from app.a3_judge.grouping.keys import NO_CARGO_PREFIX, key_tuple, row_key
+from app.a3_judge.grouping.keys import NO_CARGO_PREFIX, key_tuple, material_key, row_key
 from app.a3_judge.grouping.order import sort_rows
 from app.core.schema.declaration import Declaration, DeclarationKey
 from app.core.schema.history import C_ARRIVAL, C_RECORD, HistoryRow
@@ -10,6 +10,7 @@ W_NO_CARGO = "화물관리번호 없음: 모선명으로 묶음 (확인 필요)"
 W_NO_FACTORY = "제조사 없음: 제조사 확인 후 다시 묶어야 함"
 W_MULTI_RECORD = "한 신고에 실적번호가 여러 개 (one_record_per_declaration)"
 W_NO_ARRIVAL = "반입일 없음"
+W_NO_MATERIAL = "재질이 정해지지 않아 따로 둠 → 재질 확정 후 다시 묶음"
 
 
 def _record_nos(rows: list[HistoryRow]) -> list[str]:
@@ -29,10 +30,14 @@ def _arrival(rows: list[HistoryRow]) -> str | None:
 
 def group_rows(rows: list[HistoryRow], settings: ShipperSettings) -> list[Declaration]:
     """rows는 표 순서. 화주 설정 sort_by로 먼저 정렬하고(비우면 표 순서), 같은 키의 첫 행 순서대로 신고건을 만든다."""
-    buckets: dict[tuple[str, str, str, str], tuple[DeclarationKey, list[HistoryRow]]] = {}
+    buckets: dict[tuple[str, ...], tuple[DeclarationKey, list[HistoryRow]]] = {}
     for r in sort_rows(rows, list(getattr(settings, "sort_by", []) or [])):
         k = row_key(r, settings)
-        buckets.setdefault(key_tuple(k), (k, []))[1].append(r)
+        bucket = key_tuple(k)
+        if not material_key(r):
+            # 재질이 정해지지 않은 행은 한 행씩 따로 둔다(재질 없는 행끼리 묶이지 않게, 11/26 LSY)
+            bucket = (*bucket, "no-material", r.row_id)
+        buckets.setdefault(bucket, (k, []))[1].append(r)
 
     max_rows = settings.max_rows_per_declaration
     one_record = getattr(settings, "one_record_per_declaration", True)
@@ -46,6 +51,8 @@ def group_rows(rows: list[HistoryRow], settings: ShipperSettings) -> list[Declar
                 warnings.append(W_NO_CARGO)
             if not k.factory_code:
                 warnings.append(W_NO_FACTORY)
+            if not any(material_key(r) for r in chunk):
+                warnings.append(W_NO_MATERIAL)
             records = _record_nos(chunk)
             if one_record and len(records) > 1:
                 warnings.append(W_MULTI_RECORD)
