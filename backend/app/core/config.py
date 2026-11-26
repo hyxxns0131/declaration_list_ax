@@ -46,7 +46,6 @@ class Settings(BaseSettings):
     drive_inbox_folder_id: str = ""
     drive_law_folder_id: str = ""
     # OAuth 데스크톱 앱 클라이언트를 .env에서 읽는다(credentials.json 파일 대신, 값이 있으면 우선)
-    # [시험] LSY-google-test 브랜치 — PR하지 않음
     google_client_type: str = "installed"
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -56,7 +55,6 @@ class Settings(BaseSettings):
     # 구글 시트 ID (공유본만. 운영용 ID 금지)
     spreadsheet_id: str = ""  # 검역 이력 (공유본)
     item_spreadsheet_id: str = ""  # 품목사항 (공유본)
-    label_spreadsheet_id: str = ""  # 한글표시사항 — 공유본에서는 미사용(기능 꺼짐)
     gmail_sender: str = ""
     alert_email_to: str = ""
 

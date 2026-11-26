@@ -72,7 +72,7 @@ def headers() -> dict[str, str] | None:
     return {"Authorization": f"Bearer {tok}"} if tok else None
 
 
-# ─── 처음 로그인 (InstalledAppFlow) ─── [시험] LSY-google-test, PR하지 않음
+# ─── 처음 로그인 (InstalledAppFlow) ───
 # 권한 범위: 드라이브(접수 폴더 읽기·업로드·이동), 시트 읽기·쓰기, Gmail 보내기(만료 알림, 기존 gmail.py)
 SCOPES = [
     "https://www.googleapis.com/auth/drive",

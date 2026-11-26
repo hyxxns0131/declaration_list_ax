@@ -14,7 +14,7 @@ from app.core.google_router import router as google_router
 from app.core.storage import drive, gmail
 
 router = APIRouter(prefix="/core", tags=["core"])
-router.include_router(google_router)  # [시험] LSY-google-test: /core/google/... (PR하지 않음)
+router.include_router(google_router)  # /core/google/...
 RULES_DIR = REPO_ROOT / "backend" / "rules" / "shippers"
 
 

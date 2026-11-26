@@ -1,4 +1,4 @@
-"""구글 시트·드라이브 시험 API. [시험] LSY-google-test. 네트워크 없이 가짜 응답만 쓴다. 가상 값만."""
+"""구글 시트·드라이브 API. 네트워크 없이 가짜 응답만 쓴다. 가상 값만."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -100,13 +100,12 @@ def test_sheet_not_configured(env):
     assert e.value.code == "sheet_not_configured"
 
 
-def test_label_disabled_and_unknown(env):
-    with pytest.raises(AppError) as e:
-        sheets.read("label", "A1")
-    assert e.value.code == "sheet_disabled"
-    with pytest.raises(AppError) as e:
-        sheets.read("nope", "A1")
-    assert e.value.code == "unknown_sheet"
+def test_label_and_unknown_sheet(env):
+    # 한글표시사항은 범위 밖이라 시트 이름표가 없다
+    for key in ("label", "nope"):
+        with pytest.raises(AppError) as e:
+            sheets.read(key, "A1")
+        assert e.value.code == "unknown_sheet"
 
 
 def test_google_error_message(env, monkeypatch):
@@ -130,7 +129,8 @@ def test_api_status_hides_ids(env):
 
     body = TestClient(app).get("/api/core/google/status").json()
     assert body["login"]["ok"] is True and body["sheets"]["history"]["ok"] is True
-    assert body["sheets"]["item"]["ok"] is False and body["sheets"]["label"]["ok"] is False
+    assert body["sheets"]["item"]["ok"] is False
+    assert "label" not in body["sheets"]
     assert "TEST-SHEET" not in json.dumps(body) and "TEST-FOLDER" not in json.dumps(body)
 
 

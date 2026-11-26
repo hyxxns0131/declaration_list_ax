@@ -1,4 +1,4 @@
-"""구글 드라이브·시트 시험용 API (/core/google/...). 담당: KHS — [시험] LSY-google-test 브랜치, PR하지 않음
+"""구글 드라이브·시트 API (/core/google/...). 담당: KHS
 
 모두 로그인 필요. 폴더·시트 ID 값은 돌려주지 않고 이름표(inbox·law / history·item)로만 부른다.
 처음 구글 로그인은 API가 아니라 PC에서 `python scripts/google_login.py`로 한다(브라우저가 필요해서).
@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.storage import drive, google_auth, sheets
 
-router = APIRouter(prefix="/google", tags=["google (시험)"], dependencies=[Depends(require_login)])
+router = APIRouter(prefix="/google", tags=["google"], dependencies=[Depends(require_login)])
 
 FOLDERS = {
     "inbox": ("drive_inbox_folder_id", "서류 접수 (공유본)"),

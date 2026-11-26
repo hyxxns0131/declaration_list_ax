@@ -1,4 +1,4 @@
-"""구글 시트 읽기·쓰기 (Sheets API v4). 담당: KHS — [시험] LSY-google-test 브랜치, PR하지 않음
+"""구글 시트 읽기·쓰기 (Sheets API v4). 담당: KHS
 
 드라이브(drive.py)와 같은 방식: token.json(google_auth)으로 httpx 직접 호출, 새 라이브러리 없음.
 시트 ID는 .env에만 둔다(공개 저장소, 공유본 ID만). 화면·API는 시트 '이름표'(key)로만 부른다.
@@ -15,17 +15,14 @@ from app.core.storage import google_auth
 
 API = "https://sheets.googleapis.com/v4/spreadsheets"
 
-# 이름표 → (설정 칸 이름, 화면 이름). 한글표시사항은 공유본에서 미사용(기능 꺼짐)
+# 이름표 → (설정 칸 이름, 화면 이름). 한글표시사항 자동 작성은 범위 밖(AGENTS 0-1)이라 넣지 않는다
 SHEETS = {
     "history": ("spreadsheet_id", "검역 이력 (공유본)"),
     "item": ("item_spreadsheet_id", "품목사항 (공유본)"),
 }
-DISABLED = {"label": "한글표시사항은 공유본에서 쓰지 않습니다(기능 꺼짐)."}
 
 
 def _sheet_id(key: str) -> str:
-    if key in DISABLED:
-        raise AppError("sheet_disabled", DISABLED[key], 409)
     if key not in SHEETS:
         raise AppError("unknown_sheet", f"알 수 없는 시트입니다: {key}", 404)
     sid = getattr(get_settings(), SHEETS[key][0])
@@ -72,7 +69,6 @@ def status() -> dict:
         }
         for key, (attr, name) in SHEETS.items()
     }
-    out["label"] = {"name": "한글표시사항", "ok": False, "reason": DISABLED["label"]}
     return out
 
 

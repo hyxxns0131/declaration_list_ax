@@ -1,4 +1,4 @@
-"""처음 구글 로그인 → token.json 만들기. [시험] LSY-google-test 브랜치, PR하지 않음
+"""처음 구글 로그인 → token.json 만들기.
 
 내 PC에서 한 번만 실행한다(브라우저가 열린다). 클라우드·서버에서는 실행하지 않는다.
     cd backend
