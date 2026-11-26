@@ -218,7 +218,7 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 
 ## 6. 탭과 부품의 경계
 
-- 홈 + 탭 4개 = 제안서 가이드라인 1~4번, 탭 하나 = 담당 1명(홈 KHS `/`, 탭 1 YHS `/registry`, 탭 2 KHS `/history`, 탭 3 LSY `/judge`, 탭 4 JUJ `/settings`). 탭 순서 변경은 HS 요청 11/25.
+- 홈 + 탭 5개, 탭 하나 = 담당 1명(홈 KHS `/`, 탭 1 JUJ `/settings`, 탭 2 YHS `/registry`, 탭 3 KHS `/history`(메인 화면), 탭 4 LSY `/judge`, 탭 5 KHS `/connections`). 탭 순서 변경: 로직 점검 반영 11/25.
 - 탭 안의 세부 화면은 왼쪽 사이드바 메뉴로 나눈다(탭마다 2~3개, 경로는 `<탭>/<세부>/page.tsx`). 사이드바 목록은 `lib/nav.ts` 한 곳(PM 수정)이고, 세부 화면 page.tsx는 그 탭 담당이 만든다.
 - 탭 페이지(`app/**/page.tsx`)는 **배치와 상태 연결만** 한다. 데이터 가공·판단을 하지 않는다.
 - 탭 페이지 파일은 그 탭 담당만 고친다. 남의 탭에 기능을 넣을 때는 부품을 만들어 props로 넘긴다.

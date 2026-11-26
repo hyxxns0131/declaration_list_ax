@@ -88,7 +88,9 @@ def validate(data: dict, rules_dir: Path = RULES_DIR) -> ShipperSettings:
             raise AppError("invalid_input", f"{r['label']}: 1 이상 숫자이거나 비워 두세요.")
         if t in ("multi", "order") and not isinstance(value, list):
             raise AppError("invalid_input", f"{r['label']}: 목록이어야 합니다.")
-        if t in ("multi", "order", "select"):
+        if t == "select_list" and not isinstance(value, list):
+            raise AppError("invalid_input", f"{r['label']}: 목록이어야 합니다.")
+        if t in ("multi", "order", "select", "select_list"):
             allowed = {o["value"] for o in r.get("options", [])}
             vals = value if isinstance(value, list) else [value]
             bad = [v for v in vals if v not in allowed]

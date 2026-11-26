@@ -25,6 +25,7 @@ from app.core.schema.history import (
     C_QTY,
     C_VESSEL,
     COLOR_COLUMN,
+    OUTER_COLOR_COLUMN,
     HistoryRow,
 )
 from app.core.schema.shipper import ShipperSettings
@@ -74,6 +75,8 @@ class _Line:
             amount=self.ci.amount if self.ci else None,
             is_part=base.is_part,
             color=(self.ci.color if self.ci else "") or (self.pl.color if self.pl else ""),
+            outer_color=(self.ci.outer_color if self.ci else "")
+            or (self.pl.outer_color if self.pl else ""),
         )
 
 
@@ -173,6 +176,8 @@ def build_rows(
             row.set_ai(C_NAME_EN, line.description, _ev(ci or pl, "서류 품명"))
         if line.color:
             row.set_ai(COLOR_COLUMN, line.color, _ev(ci or pl, "서류 색상"))
+        if line.outer_color:
+            row.set_ai(OUTER_COLOR_COLUMN, line.outer_color, _ev(ci or pl, "서류 외색"))
 
         if merged_parts and line is merged_parts.line:
             row.part_lines = merged_parts.part_lines

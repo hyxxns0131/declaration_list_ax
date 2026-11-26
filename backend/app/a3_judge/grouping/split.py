@@ -1,6 +1,7 @@
 """행 → 신고건 묶음. 키가 같은 행끼리, 최대 행 수에서 끊는다. 순수 함수. 담당: LSY [개선] A3-4"""
 
 from app.a3_judge.grouping.keys import NO_CARGO_PREFIX, key_tuple, row_key
+from app.a3_judge.grouping.order import sort_rows
 from app.core.schema.declaration import Declaration, DeclarationKey
 from app.core.schema.history import C_ARRIVAL, C_RECORD, HistoryRow
 from app.core.schema.shipper import ShipperSettings
@@ -27,9 +28,9 @@ def _arrival(rows: list[HistoryRow]) -> str | None:
 
 
 def group_rows(rows: list[HistoryRow], settings: ShipperSettings) -> list[Declaration]:
-    """rows는 표 순서. 같은 키의 첫 행 순서대로 신고건을 만든다."""
+    """rows는 표 순서. 화주 설정 sort_by로 먼저 정렬하고(비우면 표 순서), 같은 키의 첫 행 순서대로 신고건을 만든다."""
     buckets: dict[tuple[str, str, str, str], tuple[DeclarationKey, list[HistoryRow]]] = {}
-    for r in rows:
+    for r in sort_rows(rows, list(getattr(settings, "sort_by", []) or [])):
         k = row_key(r, settings)
         buckets.setdefault(key_tuple(k), (k, []))[1].append(r)
 

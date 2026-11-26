@@ -1,5 +1,5 @@
 "use client";
-// 탭 3. 재질·실적 판단 › 신고건 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
+// 탭 4. 재질·실적 판단 › 신고건 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";

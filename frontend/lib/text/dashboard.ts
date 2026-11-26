@@ -1,6 +1,14 @@
 // 메인 홈(전체 현황) 문구 (DESIGN 2-2). 담당: KHS
 export const DASH = {
   title: "전체 현황",
+  // 검역이력 표 위 한 줄 요약 (로직 점검 반영 11/25)
+  strip: {
+    title: "오늘 요약",
+    needCheck: "확인 필요",
+    ready: "신청 준비",
+    recordSoon: "실적 만료 임박",
+    connections: "연결",
+  },
   shipperNow: "작업 화주",
   shipperChange: "화주 바꾸기 → 기업 설정",
   shipperFirst: "기업 설정에서 작업할 화주를 먼저 고르면, 그 화주의 숫자와 할 일이 여기에 나옵니다.",
@@ -9,8 +17,8 @@ export const DASH = {
   sub: "기업 설정에서 고른 작업 화주의 할 일을 한눈에 봅니다. 숫자 카드를 누르면 그 화면으로 갑니다.",
   sections: {
     registry: "2. 서류 등록·만료 알림",
-    judge: "3. 재질·실적 판단",
-    list: "4. 검역 리스트",
+    list: "3. 검역 리스트",
+    judge: "4. 재질·실적 판단",
     system: "연결 상태",
     upcoming: "다가오는 만료 (3개월 안)",
     flow: "하루 작업 순서",
