@@ -3,21 +3,24 @@ export const T = {
   appName: "기구·용기·포장 검역 신고 관리",
   // 용어 열린 질문(확인 필요 1): "검역" vs "수입신고 검사". 정해질 때까지 이 상수 하나로 쓴다
   inspectionWord: "검역",
-  // 홈 + 탭 5개(1인 1탭). 탭 순서 변경: 로직 점검 반영 11/25 (AGENTS 1장 탭 표)
+  // 홈 + 탭 6개(1인 1탭). 탭 순서 변경: 로직 점검 반영 11/25, 5 품목사항 엑셀 추가: HS 요청 11/26 (AGENTS 1장 탭 표)
   home: "홈",
   tabs: {
     settings: "1. 기업 설정",
     registry: "2. 서류 등록·만료 알림",
     list: "3. 검역 리스트",
     judge: "4. 재질·실적 판단",
-    connections: "5. 연결 설정", // 가이드라인 밖, HS 요청 11/25
+    itemSheet: "5. 품목사항 엑셀", // HS 요청 11/26 (판단 탭에서 분리)
+    connections: "6. 연결 설정", // 가이드라인 밖, HS 요청 11/25 · 번호 변경 HS 요청 11/26
   },
   // 탭별 사이드바 메뉴 (DESIGN 2장 사이드바 표). 경로는 lib/nav.ts
   side: {
     home: { overview: "전체 현황" },
     registry: { records: "실적 현황", factories: "해외제조업소 코드", alerts: "만료 알림" },
-    list: { table: "검역이력 표", review: "확인 필요", upload: "서류 올리기" },
-    judge: { groups: "신고건 묶음", evidence: "판단 근거", itemSheet: "품목사항 엑셀" },
+    // 검역 리스트 탭 사이드바 = 업무 순서 3단계 (검역 리스트 탭 0단계, HS 요청 11/26)
+    list: { upload: "서류 올리기·추출", review: "서류 대조·검수", table: "완성된 검역 리스트" },
+    judge: { groups: "신고건 묶음", evidence: "판단 근거" },
+    itemSheet: { all: "품목사항 내려받기" },
     settings: { shippers: "화주 선택·관리", rules: "규칙 설정" },
     connections: { all: "전체 연결", ai: "AI 모델" },
   },

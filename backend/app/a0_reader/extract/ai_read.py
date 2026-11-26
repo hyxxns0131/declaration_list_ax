@@ -9,8 +9,10 @@ from pydantic import Field as PField
 from app.core.llm import call_structured
 from app.core.schema.document import DocumentLine
 
+Grid = list[list[object]]
+
 PROMPT = "a0_reader/read_shipping_docs"
-VERSION = 1
+VERSION = 2  # v2: 엑셀 격자(탭 구분) 입력, 빈 품목 칸 채우기(HS 11/26)
 MAX_CHARS = 20000  # 보내는 글자 상한(비용). 원문은 로그에 남기지 않는다
 
 
@@ -28,13 +30,27 @@ class AiDocument(BaseModel):
     lines: list[DocumentLine] = PField(default_factory=list)
 
 
-def read_with_ai(doc_type: str, text: str, mask_names: list[str]) -> AiDocument | None:
-    if not text.strip():
+def read_with_ai(
+    doc_type: str, text: str, mask_names: list[str], images: list[bytes] | None = None
+) -> AiDocument | None:
+    """글자(text) 또는 페이지 이미지(images)로 판독. 둘 다 없으면 None."""
+    if not text.strip() and not images:
         return None
     return call_structured(
         PROMPT,
         VERSION,
-        {"doc_type": doc_type, "text": text[:MAX_CHARS]},
+        {"doc_type": doc_type, "text": text[:MAX_CHARS], "has_images": bool(images)},
         AiDocument,
         mask_names=mask_names,
+        images=images,
     )
+
+
+def grid_text(grid: Grid, max_rows: int = 400) -> str:
+    """엑셀·PDF 표 격자 → 탭으로 나눈 글자(줄마다 한 행). AI 판독 입력용."""
+    rows = []
+    for r in grid[:max_rows]:
+        cells = ["" if c is None else str(c).strip() for c in r]
+        if any(cells):
+            rows.append("\t".join(cells).rstrip())
+    return "\n".join(rows)

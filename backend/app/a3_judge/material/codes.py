@@ -4,17 +4,32 @@
 약어를 못 바꾸면 그대로 두고 uncertain=True("확인 필요").
 """
 
-import re
 from functools import lru_cache
 
 from app.core.errors import AppError
 from app.core.storage import public_db
 
-SPLIT_RE = re.compile(r"\s*[,，/·]\s*")
+SEPARATORS = ",，/·"
 
 
 def split_materials(text: str) -> list[str]:
-    return [t for t in SPLIT_RE.split(text.strip()) if t]
+    """괄호 밖의 쉼표·/·가운뎃점에서만 나눈다. 괄호 안은 재질 코드명의 일부라 그대로 둔다
+    ('합성수지제(PP, PE), 금속제' → ['합성수지제(PP, PE)', '금속제'], 11/25 결정)."""
+    out: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    for ch in text or "":
+        if ch in "(（":
+            depth += 1
+        elif ch in ")）" and depth:
+            depth -= 1
+        if ch in SEPARATORS and depth == 0:
+            out.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    out.append("".join(buf).strip())
+    return [t for t in out if t]
 
 
 def normalize(

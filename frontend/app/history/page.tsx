@@ -1,61 +1,60 @@
 "use client";
-// 탭 3. 검역 리스트 › 검역이력 표 (DESIGN 3장). 부품 배치와 상태 연결만 한다 — 데이터는 각 담당 API에서. 담당: KHS
+// 탭 3. 검역 리스트 › ③ 완성된 검역 리스트 (메인 화면, DESIGN 3장). 공통 머리(화주·배지·서류 올리기·새로고침)
+// + 단계 표시줄 + 화면 높이를 채우는 표 + 오른쪽 검수 서랍. 품목사항은 탭 5에서 만든다. 배치와 상태 연결만. 담당: KHS
+// 검역 리스트 탭 0단계(HS 요청 11/26): 머리·단계 표시줄을 ListHeader로 바꿈.
+// 4단계: 표를 ListTable(칸 묶음·고정 칸·출처 표시·검수 필요 → ②)로 바꾸고 [등록 정보 채우기](POST /history/fill)를 둠.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CellEditor } from "@/components/home/CellEditor";
-import { HistoryTable } from "@/components/home/HistoryTable";
-import { TopBar, type HomeFilter } from "@/components/home/TopBar";
-import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
 import { JudgeEvidence } from "@/components/judge/JudgeEvidence";
 import { UploadDialog } from "@/components/reader/UploadDialog";
+import { ListHeader, type BadgeFilter } from "@/components/review/ListHeader";
+import { ListTable } from "@/components/review/ListTable";
+import { pillPrimary, pillSecondary } from "@/components/review/listUi";
 import { ReviewPanel } from "@/components/review/ReviewPanel";
+import { notifyListChanged } from "@/components/review/useListSteps";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
-import { integrations, shippers as getShippers } from "@/lib/api/core";
-import { getBadges, getColumns, getHistory, moveRow, refreshHistory } from "@/lib/api/history";
+import { integrations } from "@/lib/api/core";
+import { fillFromRegistry, getColumns, getHistory, moveRow } from "@/lib/api/history";
 import { getDeclarations } from "@/lib/api/judge";
+import { useShipper } from "@/lib/hooks/useShipper";
 import { T } from "@/lib/text/common";
 import { HOME } from "@/lib/text/home";
-import type { Integrations, Shipper } from "@/lib/types/core";
-import type { Badges, Columns, Declaration, HistoryRow } from "@/lib/types/history";
-import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
+import type { Integrations } from "@/lib/types/core";
+import type { Columns, Declaration, HistoryRow } from "@/lib/types/history";
 
+/** 표 높이: 화면 높이에서 위 탭 줄·머리·단계 표시줄을 뺀 나머지 */
+const TABLE_HEIGHT = "calc(100vh - 300px)";
 
-/** 표 높이: 화면 높이에서 위 탭 줄·여백·도구 줄을 뺀 나머지(1366×768에서 약 15행 이상) */
-const TABLE_HEIGHT = "calc(100vh - 230px)";
+function matches(r: HistoryRow, f: BadgeFilter | null): boolean {
+  const cells = Object.values(r.cells);
+  if (f === "need_input") return cells.some((c) => c.flag === "need_input");
+  if (f === "mismatch") return !r.confirmed && cells.some((c) => c.flag === "mismatch");
+  if (f === "review") return r.status !== "승인" && cells.some((c) => (r.confirmed ? c.flag === "need_input" : ["mismatch", "need_check", "need_input"].includes(c.flag)));
+  if (f === "manual") return cells.some((c) => c.final_value !== null && c.final_value !== undefined);
+  return true;
+}
 
 export default function HistoryPage() {
-  const [shippers, setShippers] = useState<Shipper[]>([]);
-  const [shipperId, setShipperId] = useState("");
+  const { shipperId, shipperName } = useShipper();
   const [rows, setRows] = useState<HistoryRow[] | null>(null);
   const [decls, setDecls] = useState<Declaration[]>([]);
-  const [badges, setBadges] = useState<Badges | null>(null);
   const [cols, setCols] = useState<Columns | null>(null);
   const [info, setInfo] = useState<Integrations | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [filter, setFilter] = useState<HomeFilter>("all");
+  const [filter, setFilter] = useState<BadgeFilter | null>(null);
   const [allCols, setAllCols] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [active, setActive] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState<{ row: HistoryRow; column: string } | null>(null);
   const [evidence, setEvidence] = useState<{ row: HistoryRow; column: string } | null>(null);
 
   useEffect(() => {
-    getShippers()
-      .then((list) => {
-        setShippers(list);
-        const saved = window.localStorage.getItem(SHIPPER_KEY);
-        const pick = list.find((s) => s.shipper_id === saved)?.shipper_id ?? list[0]?.shipper_id ?? "";
-        setShipperId(pick);
-      })
-      .catch(setError);
-    getColumns().then(setCols).catch(setError);
     integrations().then(setInfo).catch(() => setInfo(null));
   }, []);
 
@@ -63,10 +62,10 @@ export default function HistoryPage() {
     if (!shipperId) return;
     setError(null);
     try {
-      const [r, b, d] = await Promise.all([getHistory(shipperId), getBadges(shipperId), getDeclarations(shipperId)]);
+      const [r, d, c] = await Promise.all([getHistory(shipperId), getDeclarations(shipperId), getColumns(shipperId)]);
       setRows(r);
-      setBadges(b);
       setDecls(d);
+      setCols(c);
     } catch (e) {
       setError(e); // 이미 보이던 데이터는 남긴다(DESIGN 3-5)
     }
@@ -77,53 +76,41 @@ export default function HistoryPage() {
     setSelected(new Set());
     setActive(null);
     load();
-    if (shipperId) rememberShipper(shipperId);
   }, [shipperId, load]);
-
-  const shipperName = shippers.find((s) => s.shipper_id === shipperId)?.display_name ?? shipperId;
 
   const columns = useMemo(() => {
     if (!cols) return [];
     let list = allCols ? [...cols.columns] : [...cols.default_view];
     if (allCols && !showHidden) list = list.filter((c) => !cols.hidden.includes(c));
-    // B사 등 색상을 쓰는 화주: 재질 다음에 색상 열(DESIGN 3-2)
-    const hasColor = rows?.some((r) => r.cells[cols.color_column]);
-    if (hasColor) {
+    // 색상 열: 화주 설정(group_by_color)으로 켠다. 화주를 모르면 행에 색상이 있을 때만
+    const showColor = cols.show_color ?? Boolean(rows?.some((r) => r.cells[cols.color_column]));
+    if (showColor) {
       const i = list.findIndex((c) => c.startsWith("재질 ("));
       list.splice(i + 1, 0, cols.color_column);
     }
     return list;
   }, [cols, allCols, showHidden, rows]);
 
-  const visible = useMemo(() => {
-    if (!rows) return [];
-    if (filter === "attention") {
-      return rows.filter(
-        (r) => r.status !== "승인" && Object.values(r.cells).some((c) => (r.confirmed ? c.flag === "need_input" : ["mismatch", "need_check", "need_input"].includes(c.flag))),
-      );
-    }
-    if (filter === "ready") return rows.filter((r) => r.status === "신청 전");
-    if (filter === "progress") {
-      const ids = new Set(decls.flatMap((d) => d.row_ids));
-      return rows.filter((r) => ids.has(r.row_id));
-    }
-    return rows;
-  }, [rows, filter, decls]);
-
+  const visible = useMemo(() => (rows ?? []).filter((r) => matches(r, filter)), [rows, filter]);
   const selectedIds = useMemo(() => (rows ?? []).filter((r) => selected.has(r.row_id)).map((r) => r.row_id), [rows, selected]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setMessage("");
+  const [filling, setFilling] = useState(false);
+  const fill = async () => {
+    setFilling(true);
     try {
-      const out = await refreshHistory(shipperId);
-      setMessage(HOME.refreshDone(out.rows, out.bls));
-      await load();
+      const out = await fillFromRegistry(shipperId);
+      setMessage(HOME.listTable.filled(out.judged, out.need_registry));
+      await reload();
     } catch (e) {
       setError(e);
     } finally {
-      setRefreshing(false);
+      setFilling(false);
     }
+  };
+
+  const reload = async () => {
+    await load();
+    notifyListChanged();
   };
 
   const onMove = async (rowId: string, dir: -1 | 1) => {
@@ -141,37 +128,28 @@ export default function HistoryPage() {
 
   return (
     <div>
-      {/* 메인 화면 = 표 중심(제안서 가이드라인 ④): 얇은 도구 줄 + 화면 높이를 채우는 표. 큰 제목·숫자 카드 없음 */}
-      <TopBar
-        shipperId={shipperId}
-        shipperName={shipperName}
-        badges={badges}
+      <ListHeader
+        title={T.side.list.table}
         filter={filter}
         onFilter={setFilter}
-        onUpload={() => setUploadOpen(true)}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        itemSheet={
-          <ItemSheetButton
-            shipperId={shipperId}
-            selectedRowIds={selectedIds}
-            onCreated={() => setMessage("")}
-          />
-        }
+        onMessage={setMessage}
+        onChanged={async (ids) => {
+          await load();
+          if (ids?.[0]) setActive(ids[0]);
+        }}
       />
 
       {info && !info.llm.ok && <Notice>{T.integrations.llmOff}</Notice>}
       {info && info.unipass.mode !== "live" && <Notice>{T.integrations.unipassMock}</Notice>}
       {message && <Notice>{message}</Notice>}
-      {uploading && <Notice>판독 중… (끝나면 표에 행이 나타납니다)</Notice>}
       {error !== null && <ErrorLine error={error} onRetry={load} />}
 
       <div style={{ display: "flex", alignItems: "center", gap: space.md, fontSize: font.sm, margin: `${space.xs}px 0` }}>
-        <label>
+        <label style={{ whiteSpace: "nowrap" }}>
           <input type="checkbox" checked={allCols} onChange={(e) => setAllCols(e.target.checked)} /> {HOME.allColumns}
         </label>
         {allCols && (
-          <label>
+          <label style={{ whiteSpace: "nowrap" }}>
             <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> {HOME.showHidden}
           </label>
         )}
@@ -185,10 +163,13 @@ export default function HistoryPage() {
         )}
         <span
           style={{ marginLeft: "auto", color: colors.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
-          title={HOME.legend}
+          title={HOME.listTable.legend}
         >
-          {HOME.legend}
+          {HOME.listTable.legend}
         </span>
+        <button type="button" style={{ ...pillSecondary, height: 34 }} disabled={!shipperId || filling} onClick={fill}>
+          {filling ? HOME.listTable.filling : HOME.listTable.fill}
+        </button>
       </div>
 
       {!shipperId && <EmptyState text={T.pickShipper} />}
@@ -197,14 +178,14 @@ export default function HistoryPage() {
         <EmptyState
           text={HOME.emptyRows}
           action={
-            <Button variant="primary" onClick={() => setUploadOpen(true)}>
-              {HOME.buttons.upload}
-            </Button>
+            <button type="button" style={pillPrimary} onClick={() => setUploadOpen(true)}>
+              ⇪ {HOME.buttons.upload}
+            </button>
           }
         />
       )}
       {rows && rows.length > 0 && (
-        <HistoryTable
+        <ListTable
           rows={visible}
           columns={columns}
           declarations={decls}
@@ -247,7 +228,7 @@ export default function HistoryPage() {
               ✕ {T.close}
             </Button>
           </div>
-          <ReviewPanel rowId={active} onConfirmed={() => load()} onClose={() => setActive(null)} />
+          <ReviewPanel rowId={active} onConfirmed={() => reload()} onClose={() => setActive(null)} />
         </aside>
       )}
 
@@ -256,19 +237,17 @@ export default function HistoryPage() {
           shipperId={shipperId}
           shipperName={shipperName}
           onClose={() => setUploadOpen(false)}
-          onStart={() => setUploading(true)}
-          onEnd={() => setUploading(false)}
           onUploaded={async (ids) => {
-            await load();
+            await reload();
             if (ids[0]) setActive(ids[0]);
           }}
         />
       )}
       {editing && (
-        <CellEditor row={editing.row} column={editing.column} onClose={() => setEditing(null)} onSaved={load} />
+        <CellEditor row={editing.row} column={editing.column} onClose={() => setEditing(null)} onSaved={reload} />
       )}
       {evidence && (
-        <JudgeEvidence row={evidence.row} column={evidence.column} onClose={() => setEvidence(null)} onChanged={load} />
+        <JudgeEvidence row={evidence.row} column={evidence.column} onClose={() => setEvidence(null)} onChanged={reload} />
       )}
     </div>
   );

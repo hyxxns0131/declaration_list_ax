@@ -218,7 +218,7 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 
 ## 6. 탭과 부품의 경계
 
-- 홈 + 탭 5개, 탭 하나 = 담당 1명(홈 KHS `/`, 탭 1 JUJ `/settings`, 탭 2 YHS `/registry`, 탭 3 KHS `/history`(메인 화면), 탭 4 LSY `/judge`, 탭 5 KHS `/connections`). 탭 순서 변경: 로직 점검 반영 11/25.
+- 홈 + 탭 6개, 탭 하나 = 담당 1명(홈 KHS `/`, 탭 1 JUJ `/settings`, 탭 2 YHS `/registry`, 탭 3 KHS `/history`(메인 화면), 탭 4 LSY `/judge`, 탭 5 LSY `/item-sheet`(HS 요청 11/26), 탭 6 KHS `/connections`). 탭 순서 변경: 로직 점검 반영 11/25.
 - 탭 안의 세부 화면은 왼쪽 사이드바 메뉴로 나눈다(탭마다 2~3개, 경로는 `<탭>/<세부>/page.tsx`). 사이드바 목록은 `lib/nav.ts` 한 곳(PM 수정)이고, 세부 화면 page.tsx는 그 탭 담당이 만든다.
 - 탭 페이지(`app/**/page.tsx`)는 **배치와 상태 연결만** 한다. 데이터 가공·판단을 하지 않는다.
 - 탭 페이지 파일은 그 탭 담당만 고친다. 남의 탭에 기능을 넣을 때는 부품을 만들어 props로 넘긴다.
@@ -288,7 +288,7 @@ main  ←  dev  ←  KHS / YHS / LSY / JUJ
 - 모든 AI 코딩 도구는 [AGENTS.md 0장](AGENTS.md#0장-ai-코딩-도구에게)을 따른다. 작업 요청은 [AGENTS.md 13장](AGENTS.md#13장-작업-요청-프롬프트-복사해서-사용) 프롬프트를 복사해 쓴다.
 - AI가 만든 코드도 본인이 읽고 이해한 뒤 PR한다. PR 작성자가 책임진다.
 - AI 도구에 실제 화주 서류·`.env`·화주 실명이 담긴 파일을 넣지 않는다.
-- 프로그램 안의 LLM 호출은 `core/llm.py` 한 곳, `AI_PROVIDER`(claude / openai)로 바꾼다. `LLM_ENABLED=false`에서도 규칙 기능은 돌아야 한다.
+- 프로그램 안의 LLM 호출은 `core/llm.py` 한 곳, OpenAI만 쓴다(OpenAI만 사용: HS 결정 11/26). `LLM_ENABLED=false`에서도 규칙 기능은 돌아야 한다.
 - 규칙으로 되는 일(품목사항 생성, 실적 만료 계산, 신고건 나누기, 가격 계산)에 AI를 쓰지 않는다.
 - 프롬프트는 `backend/prompts/<영역>/<이름>.v<N>.md`로 남기고, 바꿀 때 새 버전 파일을 만든다(결과 비교용).
 

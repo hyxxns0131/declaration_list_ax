@@ -40,6 +40,21 @@ HEADERS: tuple[tuple[str, int], ...] = (
 )
 
 
+# 담당자가 영문 제품명 뒤에 붙이는 수기 표시. 품목사항 제품명에서는 뗀다(11/25 결정, 기존 MANUAL_MARKS)
+MANUAL_MARKS: tuple[str, ...] = ("정밀검사",)
+
+
+def clean_name_en(name: str) -> str:
+    out = (name or "").strip()
+    changed = True
+    while changed:
+        changed = False
+        for mark in MANUAL_MARKS:
+            if out.endswith(mark):
+                out, changed = out[: -len(mark)].rstrip(), True
+    return out
+
+
 class ItemSheet(BaseModel):
     rows: list[list[str]] = PField(default_factory=list)
     warnings: list[str] = PField(default_factory=list)
@@ -66,7 +81,7 @@ def build_item_sheet(rows: list[HistoryRow]) -> ItemSheet:
         label = f"{r.text(C_BL)} {r.model}".strip()
         c1, c2, c3 = split_cargo(r.text(C_CARGO))
         values = [
-            r.text(C_NAME_EN),
+            clean_name_en(r.text(C_NAME_EN)),
             r.text(C_NAME_KO),
             "Y" if i == 0 else "N",
             _num(r.val(C_CARTONS)),

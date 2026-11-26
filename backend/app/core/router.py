@@ -70,8 +70,8 @@ class CheckIn(BaseModel):
 
 
 class AiChoiceIn(BaseModel):
-    provider: str  # openai | claude
-    model: str | None = None  # 주면 그 회사의 모델만 바꾼다. 없으면 '사용할 AI'를 바꾼다
+    provider: str = "openai"  # OpenAI만 (HS 결정 11/26)
+    model: str | None = None  # OpenAI 모델(버전)
 
 
 @router.get("/connections", dependencies=[Depends(require_login)])
@@ -93,9 +93,9 @@ def connection_check(body: CheckIn) -> dict:
 
 @router.put("/ai-choice", dependencies=[Depends(require_login)])
 def ai_choice(body: AiChoiceIn) -> dict:
-    """사용할 AI 회사·모델 저장(data/ai_choice.json). .env는 바꾸지 않는다."""
+    """OpenAI 모델(버전) 저장(data/ai_choice.json). .env는 바꾸지 않는다. AI는 OpenAI만(HS 결정 11/26)."""
     if body.provider not in llm.PROVIDERS:
-        raise AppError("unknown_provider", "openai 또는 claude만 고를 수 있습니다.", 422)
+        raise AppError("unknown_provider", "AI는 OpenAI만 씁니다.", 422)
     if body.model is not None and not body.model.strip():
         raise AppError("empty_model", "모델 이름이 비었습니다.", 422)
     llm.save_choice(body.provider, body.model)

@@ -38,3 +38,29 @@ def read_excel(path: Path) -> Grid:
         return []
     finally:
         wb.close()
+
+
+def read_excel_sheets(path: Path) -> list[tuple[str, Grid]]:
+    """내용이 있는 시트 전부 [(시트 이름, 격자)]. 한 파일에 CI·PL·부분품 시트가 같이 있는 경우(HS 11/26 실제 샘플)."""
+    out: list[tuple[str, Grid]] = []
+    if path.suffix.lower() == ".xls":
+        import xlrd
+
+        book = xlrd.open_workbook(str(path))
+        for sheet in book.sheets():
+            rows = [sheet.row_values(i) for i in range(sheet.nrows)]
+            if any(any(str(c).strip() for c in r) for r in rows):
+                out.append((sheet.name, _trim(rows)))
+        return out
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(path, data_only=True, read_only=True)
+    try:
+        for ws in wb.worksheets:
+            rows = [list(r) for r in ws.iter_rows(values_only=True)]
+            if any(any(c is not None and str(c).strip() for c in r) for r in rows):
+                out.append((ws.title, _trim(rows)))
+        return out
+    finally:
+        wb.close()

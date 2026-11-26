@@ -40,7 +40,8 @@ def choose_name_model(
             if p.model.strip().upper().startswith(mm.strip().upper() + "-"):
                 return mm, False, f"부분품 코드 {p.model}가 본품 {mm}로 시작"
     if mains:  # ③
-        smallest = min(mains, key=lambda m: m.cartons or 0)
+        # 카톤 수가 빈 본품은 뒤로(빈 값을 0으로 보면 '가장 적은 모델'로 잘못 뽑힌다, 11/26)
+        smallest = min(mains, key=lambda m: (m.cartons is None, m.cartons or 0))
         return smallest.model, True, "본품 중 카톤 수가 가장 적은 모델로 정함 — 확인 필요"
     return (parts[0].model if parts else ""), True, "같은 B/L에 본품 없음 — 확인 필요"
 

@@ -2,8 +2,13 @@
 
 GET   /history?shipper_id=&status=&attention=     검역이력 표
 GET   /history/badges?shipper_id=                 확인 필요 n, 진행 중 n
-GET   /history/columns                            열 이름(26칸 + 색상, 숨김 열)
+GET   /history/columns?shipper_id=                열 이름(26칸 + 색상, 숨김 열). 색상 열은 화주 설정 group_by_color로 켠다
+GET   /history/steps?shipper_id=                  단계 표시줄 완료 판단(① 자료 추가 필요 ② 미해결 불일치 ③ 빈 필수 칸) — 0단계
 POST  /history/refresh?shipper_id=                새로고침(유니패스·대조·재계산, 확정 값 유지)
+POST  /history/crosscheck?shipper_id=             서류 3종 다시 대조(코드 + OpenAI) — 2단계
+GET   /history/mismatches?shipper_id=&status=     대조 결과(불일치·해결됨, status=일치/불일치/해결됨) — 2단계
+POST  /history/fill?shipper_id=                   서류 등록 탭 정보로 제조사·재질·실적 채우기 — 4단계
+PATCH /history/{row_id}/resolve                   검수 패널에서 고른 값 저장(final_value, 근거 MANUAL) — 3단계
 POST  /history/archive?shipper_id=                처리완료 이동(드라이브)
 GET   /history/{row_id}                           행 하나
 PATCH /history/{row_id}                           담당자 수정(final_value)
@@ -18,7 +23,11 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.a1_history.fill import service as fill_service
+from app.a1_history.review import service as review_service
 from app.a1_history.rows import service
+from app.a1_history.rows.steps import steps as compute_steps
+from app.a4_settings.engine.service import get_rules
 from app.core.errors import AppError
 from app.core.schema.history import COLOR_COLUMN, COLUMNS, HIDDEN_COLUMNS, HistoryRow
 from app.core.storage import work_db
@@ -65,11 +74,39 @@ def badges(shipper_id: str) -> dict:
     return service.badges(shipper_id)
 
 
+class ResolveIn(BaseModel):
+    choices: list[review_service.Choice]
+
+
+@router.post("/crosscheck")
+def crosscheck(shipper_id: str) -> dict:
+    return review_service.crosscheck_all(shipper_id)
+
+
+@router.get("/mismatches")
+def mismatches(shipper_id: str, status: str | None = None) -> list[dict]:
+    return review_service.list_mismatches(shipper_id, status)
+
+
+@router.post("/fill")
+def fill(shipper_id: str) -> dict:
+    return fill_service.fill(shipper_id)
+
+
+@router.get("/steps")
+def steps(shipper_id: str) -> dict:
+    return compute_steps(work_db.list_rows(shipper_id))
+
+
 @router.get("/columns")
-def columns() -> dict:
+def columns(shipper_id: str | None = None) -> dict:
+    show_color = (
+        bool(getattr(get_rules(shipper_id), "group_by_color", False)) if shipper_id else None
+    )
     return {
         "columns": list(COLUMNS),
         "color_column": COLOR_COLUMN,
+        "show_color": show_color,  # None = 화주 모름(행에 색상이 있으면 보임)
         "hidden": list(HIDDEN_COLUMNS),
         "default_view": list(DEFAULT_VIEW),
     }
@@ -113,6 +150,11 @@ def move(row_id: str, body: MoveIn) -> dict:
 @router.get("/{row_id}/review")
 def review(row_id: str) -> dict:
     return service.review(row_id)
+
+
+@router.patch("/{row_id}/resolve")
+def resolve(row_id: str, body: ResolveIn) -> HistoryRow:
+    return review_service.resolve(row_id, body.choices)
 
 
 @router.post("/{row_id}/confirm")

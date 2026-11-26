@@ -1,4 +1,4 @@
-// 탭 5. 연결 설정 › AI 모델: OpenAI·Claude 카드([이 AI 사용], 모델 고르기, [연결 검사]). 담당: KHS (HS 요청 11/25)
+// 탭 6. 연결 설정 › AI 모델: OpenAI 카드 하나(모델 고르기, [연결 검사]). OpenAI만 사용: HS 결정 11/26. 담당: KHS
 import { ConnectionsView } from "@/components/connections/ConnectionsView";
 
 export default function AiModelPage() {
