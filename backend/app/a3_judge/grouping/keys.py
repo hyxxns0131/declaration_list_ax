@@ -6,6 +6,7 @@
 """
 
 from app.a3_judge.history_lookup.model_key import split_maker
+from app.a3_judge.material.codes import normalize
 from app.core.schema.declaration import DeclarationKey
 from app.core.schema.history import (
     C_CARGO,
@@ -36,9 +37,15 @@ def factory_key(row: HistoryRow) -> str:
 
 
 def material_key(row: HistoryRow) -> str:
-    """재질 칸이 '○○ 자료 추가 필요'면 아직 재질이 없는 것(빈 키) — 문구마다 신고건이 갈리지 않게."""
+    """재질 칸이 '○○ 자료 추가 필요'면 아직 재질이 없는 것(빈 키) — 문구마다 신고건이 갈리지 않게.
+
+    가나다순·중복 제거로 정리한 뒤 비교한다. 목록이 똑같을 때만 같은 신고(11/25 결정 Q3) —
+    담당자가 '폴리프로필렌, 금속제'처럼 순서만 다르게 적어도 같은 재질로 본다.
+    """
     text = row.text(C_MATERIAL)
-    return "" if "자료 추가 필요" in text else text
+    if not text.strip() or "자료 추가 필요" in text:
+        return ""
+    return normalize(text, {})[0]
 
 
 def color_key(row: HistoryRow, basis: str | None) -> str:
