@@ -32,6 +32,19 @@ export const HOME = {
     mismatch: (n: number) => `불일치 ${n}`,
     edited: (n: number) => `사람 수정 ${n}`,
   },
+  // 메인 화면 도구 줄 (로직 점검 반영 11/25)
+  bar: {
+    title: "검역이력",
+    changeShipper: "작업 화주 바꾸기(기업 설정)",
+    all: "전체",
+    needCheck: "확인 필요",
+    progress: "진행 중",
+    ready: "신청 준비",
+    recordSoon: "실적 만료 임박",
+    connections: "연결",
+    settingsTitle: "기업 설정 › 규칙 설정",
+  },
+  closePanel: "검수 패널 닫기",
   buttons: {
     upload: "서류 올리기",
     itemSheet: "품목사항 만들기",
