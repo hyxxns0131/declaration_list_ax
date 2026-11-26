@@ -53,6 +53,7 @@ export function HistoryTable({
   onEdit,
   onOpenEvidence,
   onMove,
+  maxHeight,
 }: {
   rows: HistoryRow[];
   columns: string[];
@@ -65,6 +66,8 @@ export function HistoryTable({
   onEdit: (row: HistoryRow, column: string) => void;
   onOpenEvidence: (row: HistoryRow, column: string) => void;
   onMove: (rowId: string, dir: -1 | 1) => void;
+  /** 주면 표가 이 높이 안에서 스스로 스크롤하고 머리글이 붙어 있는다(메인 화면, 로직 점검 반영 11/25) */
+  maxHeight?: string;
 }) {
   const byId = new Map(rows.map((r) => [r.row_id, r]));
   const used = new Set<string>();
@@ -80,7 +83,7 @@ export function HistoryTable({
   let declNo = 0;
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div style={maxHeight ? { overflow: "auto", maxHeight } : { overflowX: "auto" }}>
       <table className="grid sheet">
         <thead>
           <tr>
@@ -155,8 +158,10 @@ export function HistoryTable({
                       return (
                         <td
                           key={c}
-                          title={NOT_EDITABLE.has(c) ? HOME.computed : st.title || (editable ? HOME.editHint : "")}
-                          style={{ ...st.style, whiteSpace: c === "비고" ? "pre-line" : undefined }}
+                          title={[text, NOT_EDITABLE.has(c) ? HOME.computed : st.title || (editable ? HOME.editHint : "")]
+                            .filter(Boolean)
+                            .join(" · ")}
+                          style={st.style}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
                             if (editable) onEdit(r, c);
