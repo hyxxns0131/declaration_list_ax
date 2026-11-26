@@ -5,11 +5,14 @@ import { useState, type FormEvent } from "react";
 import { colors, panelRadius, space } from "@/components/ui/tokens";
 import { ApiError } from "@/lib/api/client";
 import { login } from "@/lib/api/core";
+import { MAIN_PATH } from "@/lib/nav";
 import { T } from "@/lib/text/common";
 
+/** 로그인 뒤 갈 곳: 원래 화면, 없거나 홈이면 메인 화면(검역이력 표, 제안서 가이드라인 ④). */
 function nextPath(): string {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("/login") ? next : "/";
+  const ok = next && next.startsWith("/") && !next.startsWith("/login") && next !== "/";
+  return ok ? next : MAIN_PATH;
 }
 
 export function LoginForm() {

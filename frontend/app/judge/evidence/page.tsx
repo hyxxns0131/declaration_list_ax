@@ -1,5 +1,5 @@
 "use client";
-// 탭 3. 재질·실적 판단 › 판단 근거 (DESIGN 5-2). 행별 재질·실적·제조사 + 근거 팝오버. 배치만 한다. 담당: LSY
+// 탭 4. 재질·실적 판단 › 판단 근거 (DESIGN 5-2). 행별 재질·실적·제조사 + 근거 팝오버. 배치만 한다. 담당: LSY
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JUDGE_COLUMNS, JudgeEvidence } from "@/components/judge/JudgeEvidence";

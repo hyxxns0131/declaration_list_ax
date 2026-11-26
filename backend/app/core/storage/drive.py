@@ -107,3 +107,58 @@ def move_folder(name_parts: list[str], to_parts: list[str]) -> dict:
         return {"ok": True, "file_id": src}
     except httpx.HTTPError as e:
         return {"ok": False, "reason": f"드라이브 이동 실패({type(e).__name__})"}
+
+
+# ── 접수 폴더 자동 처리(inbox, 로직 점검 반영 11/25) ─────────────────────────
+INBOX_NEW = "새 서류"  # {접수 폴더}/{화주}/새 서류/{B/L 폴더}/ 에 서류를 넣으면 가져온다
+INBOX_DONE = "가져옴"  # 가져온 B/L 폴더는 {화주}/가져옴/ 으로 옮긴다(지우지 않음)
+
+
+def list_children(folder_id: str, h: dict[str, str]) -> list[dict]:
+    """폴더 안 항목 [{id, name, mimeType}] (휴지통 제외)."""
+    r = httpx.get(
+        API,
+        params={
+            "q": f"'{folder_id}' in parents and trashed = false",
+            "fields": "files(id,name,mimeType)",
+            "pageSize": 200,
+        },
+        headers=h,
+        timeout=30,
+    )
+    r.raise_for_status()
+    return list(r.json().get("files", []))
+
+
+def download(file_id: str, h: dict[str, str]) -> bytes:
+    r = httpx.get(f"{API}/{file_id}", params={"alt": "media"}, headers=h, timeout=120)
+    r.raise_for_status()
+    return r.content
+
+
+def inbox_folders(shipper_id: str) -> tuple[list[tuple[str, list[tuple[str, bytes]]]], str]:
+    """{화주}/새 서류/ 아래 B/L 폴더마다 (폴더 이름, [(파일 이름, 바이트)]). 연결 안 되면 ([], 이유)."""
+    st = status()
+    if not st["ok"]:
+        return [], f"드라이브 미연결: {st['reason']}"
+    h = google_auth.headers()
+    if not h:
+        return [], "드라이브 미연결: 구글 토큰 갱신 실패"
+    try:
+        new_id = folder_path([shipper_id, INBOX_NEW])
+        if not new_id:
+            return [], "드라이브 미연결"
+        out: list[tuple[str, list[tuple[str, bytes]]]] = []
+        for f in list_children(new_id, h):
+            if f.get("mimeType") != FOLDER_MIME:
+                continue
+            files = [
+                (c["name"], download(c["id"], h))
+                for c in list_children(f["id"], h)
+                if c.get("mimeType") != FOLDER_MIME
+            ]
+            if files:
+                out.append((f["name"], files))
+        return out, ""
+    except httpx.HTTPError as e:
+        return [], f"드라이브 읽기 실패({type(e).__name__})"

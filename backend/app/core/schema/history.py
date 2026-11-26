@@ -36,7 +36,8 @@ COLUMNS: tuple[str, ...] = (
     "승인번호",
     "비고",
 )
-COLOR_COLUMN = "색상"  # B사 탭: 재질 다음 칸
+COLOR_COLUMN = "색상"  # B사 탭: 재질 다음 칸 (서류의 내색·색상)
+OUTER_COLOR_COLUMN = "외색"  # 서류에 외색 칸이 따로 있을 때만. 신고건 색상 기준(color_basis)에서 씀
 HIDDEN_COLUMNS = ("USD 환율", "CI 통화", "CI 통화 환율")
 
 # 반입 전: 판단은 끝났지만 반입일이 없어 아직 신청할 수 없음(RULES 11-3 '반입일 들어온 묶음만 신청 전')

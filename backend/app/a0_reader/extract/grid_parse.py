@@ -47,6 +47,7 @@ LINE_HEADERS: list[tuple[str, tuple[str, ...]]] = [
     ("net_kg", ("nw", "netweight", "순중량")),
     ("gross_kg", ("gw", "grossweight", "총중량")),
     ("amount", ("amount", "총액", "금액")),
+    ("outer_color", ("outercolor", "외색")),
     ("color", ("innercolor", "color", "내색", "색상")),
 ]
 
@@ -171,6 +172,7 @@ def parse_grid(grid: Grid) -> GridResult:
                 amount=to_float(_cell(row, cols, "amount")),
                 is_part=any(w in norm(desc) for w in PART_WORDS),
                 color=str(_cell(row, cols, "color") or "").strip(),
+                outer_color=str(_cell(row, cols, "outer_color") or "").strip(),
             )
         )
     # 통화: 머리 칸에 없으면 금액 머리글(Amount (USD))에서

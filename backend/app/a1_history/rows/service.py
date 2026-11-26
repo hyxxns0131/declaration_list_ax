@@ -16,6 +16,7 @@ from app.a1_history.crosscheck.service import apply_flags, arrival_check, crossc
 from app.a1_history.missing.service import DOC_LABELS, missing_docs
 from app.a1_history.price.service import fill_prices
 from app.a1_history.rows.build import build_rows, find_bl, merge_with_existing
+from app.a1_history.rows.names import apply_name_style
 from app.a3_judge.grouping.service import recompute
 from app.a3_judge.pipeline.service import judge_rows
 from app.a4_settings.engine.service import get_rules
@@ -163,6 +164,7 @@ def rebuild_bl(
     ids = {r.row_id for r in rows}
     merged_history = [h for h in history if h.row_id not in ids] + rows
     rows = judge_rows(shipper_id, rows, merged_history)
+    apply_name_style(rows, settings)
     _finish(rows, docs, cargo.arrival_packages if cargo else "")
     work_db.save_rows(rows)
     recompute(shipper_id)
@@ -180,6 +182,7 @@ def simulate(
         apply_cargo(r, cargo)
     history = [h for h in work_db.list_rows(shipper_id) if h.text("B/L Number") != bl_no]
     rows = judge_rows(shipper_id, rows, history + rows, settings=settings, extra_docs=docs)
+    apply_name_style(rows, settings)
     fill_prices(rows)
     for r in rows:
         apply_flags(r, crosscheck_row(r, docs, rows))
@@ -240,11 +243,40 @@ def rejudge(shipper_id: str, row_ids: list[str] | None = None) -> int:
         recompute(shipper_id)
         return 0
     judged = judge_rows(shipper_id, targets, history)
+    apply_name_style(judged, get_rules(shipper_id))
     for r in judged:
         r.refresh_status()
     work_db.save_rows(judged)
     recompute(shipper_id)
     return len(judged)
+
+
+def scan_inbox(shipper_id: str) -> dict:
+    """드라이브 접수 폴더 자동 처리(화주 설정 inbox). {화주}/새 서류/의 B/L 폴더마다 서류 올리기와 같게 처리하고
+    {화주}/가져옴/으로 옮긴다. 꺼져 있으면 하지 않고, 드라이브가 연결 안 됐으면 '드라이브 미연결'로 알린다."""
+    if not getattr(get_rules(shipper_id), "inbox", False):
+        return {
+            "ok": False,
+            "enabled": False,
+            "reason": "기업 설정에서 '드라이브 접수 폴더 자동 처리'가 꺼져 있습니다.",
+            "imported": [],
+        }
+    folders, why = drive.inbox_folders(shipper_id)
+    if why:
+        return {"ok": False, "enabled": True, "reason": why, "imported": []}
+    imported = []
+    for name, files in folders:
+        out = process_upload(shipper_id, files)
+        drive.move_folder([shipper_id, drive.INBOX_NEW, name], [shipper_id, drive.INBOX_DONE])
+        imported.append(
+            {
+                "folder": name,
+                "bl_no": out["bl_no"],
+                "rows": len(out["created"]) + len(out["updated"]),
+            }
+        )
+    local_db.audit("inbox_scan", shipper_id, f"folders={len(imported)}")
+    return {"ok": True, "enabled": True, "reason": "", "imported": imported}
 
 
 def refresh(shipper_id: str) -> dict:
@@ -264,7 +296,9 @@ def refresh(shipper_id: str) -> dict:
         work_db.save_rows(group)
         n += len(group)
     judged = rejudge(shipper_id)
-    return {"rows": n, "judged": judged, "bls": len(bls)}
+    # 접수 폴더 자동 처리가 켜진 화주는 새로고침 때 드라이브 접수 폴더도 본다(로직 점검 반영 11/25)
+    inbox = scan_inbox(shipper_id) if getattr(get_rules(shipper_id), "inbox", False) else None
+    return {"rows": n, "judged": judged, "bls": len(bls), "inbox": inbox}
 
 
 def patch_cell(

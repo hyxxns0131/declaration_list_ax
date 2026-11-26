@@ -18,7 +18,8 @@ class DocumentLine(BaseModel):
     net_kg: float | None = None
     amount: float | None = None
     is_part: bool = False
-    color: str = ""
+    color: str = ""  # 내색(또는 색상)
+    outer_color: str = ""  # 외색 (서류에 따로 있을 때)
 
 
 class ParsedDocument(BaseModel):
