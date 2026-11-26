@@ -1,4 +1,4 @@
-"""연결 상태·AI 모델 고르기 (탭 5. 연결 설정). 네트워크 없이 시험한다. 가상 키만 쓴다."""
+"""연결 상태·AI 모델 고르기 (탭 6. 연결 설정). AI는 OpenAI만(HS 결정 11/26). 네트워크 없이 시험한다. 가상 키만 쓴다."""
 
 import pytest
 
@@ -21,24 +21,42 @@ def env(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
-def test_choice_overrides_env(env):
-    assert llm.current_provider() == "claude"
-    llm.save_choice("openai")
-    llm.save_choice("openai", "gpt-4o-mini")
+def test_openai_only_even_if_env_says_claude(env):
+    # 예전 .env의 AI_PROVIDER=claude는 무시된다
     assert llm.current_provider() == "openai"
+    assert llm.current_model() == llm.DEFAULT_OPENAI_MODEL
+    llm.save_choice("openai", "gpt-4o-mini")
     assert llm.current_model() == "gpt-4o-mini"
-    assert llm.ready() is True  # openai 키가 있으므로
+    assert llm.ready() is True  # OPENAI_API_KEY가 있으므로
     assert (env / "ai_choice.json").exists()
 
 
-def test_bad_provider(env):
+def test_old_claude_choice_is_ignored(env):
+    (env / "ai_choice.json").write_text(
+        '{"provider": "claude", "models": {"claude": "claude-x", "openai": "gpt-4o"}}',
+        encoding="utf-8",
+    )
+    assert llm.current_provider() == "openai" and llm.current_model() == "gpt-4o"
+
+
+@pytest.mark.parametrize("provider", ["claude", "gemini"])
+def test_other_provider_refused(env, provider):
     with pytest.raises(ValueError):
-        llm.save_choice("gemini")
+        llm.save_choice(provider, "x")
 
 
-def test_missing_key_is_off_without_network(env):
-    r = connections.check("claude")
-    assert r["state"] == "off" and "ANTHROPIC_API_KEY" in r["message"]
+def test_no_claude_connection(env):
+    keys = [r["key"] for r in connections.status()["rows"]]
+    assert "claude" not in keys and keys[0] == "openai"
+
+
+def test_missing_key_is_off_without_network(env, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+    r = connections.check("openai")
+    assert r["state"] == "off" and "OPENAI_API_KEY" in r["message"]
     r = connections.check("unipass")
     assert r["state"] == "off" and "mock" in r["message"]
 
@@ -97,8 +115,8 @@ def test_account_models_are_added_as_versions(env, monkeypatch):
     assert row["ai"]["account_list"] is True
 
 
-def test_no_key_shows_recommended_only(env):
-    row = next(x for x in connections.status()["rows"] if x["key"] == "claude")
+def test_no_check_yet_shows_recommended_only(env):
+    row = next(x for x in connections.status()["rows"] if x["key"] == "openai")
     groups = {m["group"] for m in row["ai"]["models"]}
     assert groups == {"recommended"} and row["ai"]["account_list"] is False
 

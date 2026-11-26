@@ -13,13 +13,23 @@ DocType = Literal[
 class DocumentLine(BaseModel):
     model: str = ""
     description: str = ""
-    qty_per_carton: float | None = None  # 입수
+    qty_per_carton: float | None = None  # 입수(카톤 1개에 든 수량, AGENTS 12장)
+    quantity: float | None = None  # 수량(PCS 합계). 검역이력 '입수' 칸 값(HS 결정 11/26)
     cartons: float | None = None
     net_kg: float | None = None
     amount: float | None = None
     is_part: bool = False
     color: str = ""  # 내색(또는 색상)
     outer_color: str = ""  # 외색 (서류에 따로 있을 때)
+
+    def pcs(self) -> float | None:
+        """전체 개수(PCS 합계) = 검역이력 '입수' 칸 값(HS 결정 11/26).
+        서류의 수량(PCS) 칸 값, 없으면 카톤당 수량 x 카톤 수(둘 다 서류 값일 때만), 아니면 None."""
+        if self.quantity is not None:
+            return self.quantity
+        if self.qty_per_carton is not None and self.cartons is not None:
+            return round(self.qty_per_carton * self.cartons, 4)
+        return None
 
 
 class ParsedDocument(BaseModel):
@@ -40,3 +50,5 @@ class ParsedDocument(BaseModel):
     lines: list[DocumentLine] = PField(default_factory=list)
     parser: Literal["excel", "pdf", "llm"] = "excel"
     warnings: list[str] = PField(default_factory=list)
+    # 칸마다 출처: {"bl_no": "excel" | "pdf" | "llm" | "llm:image"} (검역 리스트 탭 1단계)
+    sources: dict[str, str] = PField(default_factory=dict)

@@ -12,7 +12,7 @@ export const HOME = {
   },
   upload: {
     title: "서류 올리기",
-    sub: "B/L 폴더 1개 = 선적서류 1건. CI·PL·B/L·원산지증명서·입고리스트를 함께 고르세요.",
+    sub: "B/L 폴더 1개 = 선적서류 1건. 서류마다 B/L 번호·모선·제조사·품목·수량·중량·금액을 읽어 선적 건 카드로 보여 줍니다.",
     steps: [
       "화주를 고릅니다",
       "[서류 올리기]를 눌러 한 B/L의 서류를 모두 고릅니다",
@@ -20,10 +20,37 @@ export const HOME = {
     ],
     done: (n: number) => `행 ${n}개를 만들거나 고쳤습니다`,
     goTable: "검역이력 표로 가기",
+    emptyShipments: "아직 올린 선적서류가 없습니다. 인보이스·패킹리스트·B/L을 올려 주세요.",
+    shipmentCount: (n: number, missing: number) => `선적 ${n}건 · 자료 추가 필요 ${missing}건`,
     inbox: "드라이브 접수 폴더에서 가져오기",
     inboxBusy: "가져오는 중…",
     inboxHint: "기업 설정의 '드라이브 접수 폴더 자동 처리'가 켜진 화주만 보입니다. '{화주}/새 서류/' 안의 B/L 폴더를 읽습니다.",
     inboxDone: (n: number) => (n ? `B/L 폴더 ${n}개를 가져왔습니다` : "가져올 새 B/L 폴더가 없습니다"),
+  },
+  // 화면 ③ 완성된 검역 리스트 표 (검역 리스트 탭 4단계)
+  listTable: {
+    fixed: "고정",
+    restGroup: "승인·기타",
+    manual: "담당자가 고르거나 고친 값",
+    registry: "등록 정보(수입신고필증·시험성적서·규칙·이력)로 채운 값",
+    blocked: "검수 필요",
+    blockedTip: "서류끼리 값이 달라 비워 두었습니다. 눌러서 ② 서류 대조·검수에서 값을 고르세요",
+    fill: "등록 정보 채우기",
+    filling: "채우는 중…",
+    filled: (n: number, need: number) => `등록 정보로 ${n}행을 다시 판단했습니다 · 서류 등록 필요 ${need}행`,
+    legend: "✎ 주황 = 담당자가 고른 값 · ● 파랑 = 등록 정보로 채움 · ■ 빨강 = 검수 필요(② 서류 대조·검수) · 두 번 눌러 고치기 · 🔒 승인 행은 잠김",
+  },
+  // 화면 ② 서류 대조·검수 (검역 리스트 탭 3단계)
+  reviewPage: {
+    open: "미해결",
+    openShort: "미해결",
+    done: "해결됨",
+    all: "전체",
+    recheck: "다시 대조",
+    rechecked: (bls: number, open: number) => `선적 ${bls}건을 다시 대조했습니다 · 미해결 불일치 ${open}`,
+    noneOpen: "미해결 불일치가 없습니다",
+    none: "보여 줄 행이 없습니다",
+    pick: "왼쪽 목록에서 행을 고르면 서류별 값을 나란히 보고 쓸 값을 고를 수 있습니다.",
   },
   badges: {
     needCheck: (n: number) => `확인 필요 ${n}`,
@@ -43,6 +70,7 @@ export const HOME = {
     recordSoon: "실적 만료 임박",
     connections: "연결",
     settingsTitle: "기업 설정 › 규칙 설정",
+    itemSheetLink: "품목사항 엑셀(탭 5) →",
   },
   closePanel: "검수 패널 닫기",
   buttons: {
@@ -52,7 +80,7 @@ export const HOME = {
     settings: "설정",
   },
   refreshDone: (rows: number, bls: number) => `새로고침 완료: B/L ${bls}건, 행 ${rows}개 다시 계산 (확정 값 유지)`,
-  allColumns: "전체 열",
+  allColumns: "모든 칸 보기",
   showHidden: "숨김 열 보기",
   filterAll: "모두 보기",
   emptyRows: "아직 올린 서류가 없습니다",

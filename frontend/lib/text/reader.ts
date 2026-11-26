@@ -4,11 +4,11 @@ export const READER = {
   guide: "선적서류 1건(B/L 1건)씩 올려 주세요.",
   drop: "여기로 파일을 끌어 놓거나",
   pick: "파일 고르기",
-  kinds: "PDF · 엑셀 · 사진",
+  kinds: "인보이스·패킹리스트·B/L (PDF, 엑셀, 이미지)",
   recognized: "인식한 서류",
   required: (labels: string) => `(필요 서류: ${labels})`,
   unknownType: "종류 확인 필요",
-  submit: "올리고 판독",
+  submit: "올리기",
   uploading: "올리고 판독하는 중… (대화상자를 닫아도 됩니다)",
   done: (created: number, updated: number) => `판독 완료: 새 행 ${created}개, 고친 행 ${updated}개`,
   reupload: "이미 있는 B/L입니다. 바뀐 칸만 고칩니다.",
@@ -16,6 +16,16 @@ export const READER = {
   readFail: "서류 판독 실패 - 파일 확인 필요",
   noFiles: "파일을 골라 주세요.",
   remove: "빼기",
+  // 검역 리스트 탭 1단계 (화면 ①)
+  dropTitle: "선적서류를 여기에 끌어다 놓으세요",
+  folderRule: "폴더 1개 = 선적서류 1건으로 묶어서 읽습니다",
+  pickFolder: "폴더 통째로 고르기",
+  waiting: "올리기 전",
+  reading: "읽는 중",
+  read: "추출 완료",
+  failed: "실패",
+  summary: (ships: number, missing: number) => `선적 ${ships}건 추출 완료 · 자료 추가 필요 ${missing}`,
+  goReview: "대조 결과 보기",
 } as const;
 
 export const DOC_LABELS: Record<string, string> = {

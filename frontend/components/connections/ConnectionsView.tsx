@@ -1,5 +1,5 @@
 "use client";
-// 탭 5. 연결 설정 화면 본문. part="external" → 전체 연결 표(/connections), part="ai" → AI 모델 카드(/connections/ai).
+// 탭 6. 연결 설정 화면 본문. part="external" → 전체 연결 표(/connections), part="ai" → AI 모델 카드(/connections/ai).
 // 두 화면이 같은 상태·[연결 검사] 동작을 쓰므로 한 파일에 둔다. 담당: KHS (HS 요청 11/25)
 import { useCallback, useEffect, useState } from "react";
 
@@ -43,13 +43,11 @@ function AiCard({
   row,
   busy,
   onCheck,
-  onUse,
   onModel,
 }: {
   row: ConnRow;
   busy: boolean;
   onCheck: () => void;
-  onUse: () => void;
   onModel: (m: string) => void;
 }) {
   const [custom, setCustom] = useState<string | null>(null); // null = 직접 입력 칸 닫힘
@@ -78,22 +76,17 @@ function AiCard({
   return (
     <div
       style={{
-        border: `1px solid ${ai.in_use ? colors.primary : colors.border}`,
+        border: `1px solid ${colors.border}`,
         borderRadius: 8,
         padding: space.md,
-        background: ai.in_use ? colors.primarySoft : colors.bg,
+        background: colors.bg,
+        maxWidth: 640,
         minWidth: 0,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: space.sm, flexWrap: "wrap" }}>
         <strong style={{ fontSize: font.lg }}>{row.label}</strong>
-        {ai.in_use ? (
-          <Badge tone="info">{CONN.inUse}</Badge>
-        ) : (
-          <Button small onClick={onUse} disabled={busy}>
-            {CONN.useThis}
-          </Button>
-        )}
+        <span style={{ fontSize: font.sm, color: colors.muted }}>{CONN.onlyOpenai}</span>
         <span style={{ marginLeft: "auto" }}>
           <Badge tone={st.tone}>{st.text}</Badge>
         </span>
@@ -197,11 +190,6 @@ export function ConnectionsView({ part }: { part: "external" | "ai" }) {
       for (const r of rows) out = await checkConnections(r.key);
       return out ?? connections();
     });
-  const use = (row: ConnRow) =>
-    run(row.key, async () => {
-      await setAiChoice(row.key);
-      return checkConnections(row.key);
-    }, CONN.providerSaved(row.label));
   const pickModel = (row: ConnRow, model: string) =>
     run(row.key, async () => {
       await setAiChoice(row.key, model);
@@ -240,10 +228,17 @@ export function ConnectionsView({ part }: { part: "external" | "ai" }) {
         <>
           <Card title={CONN.aiCards}>
             {!data.llm_enabled && <Notice tone="warn">{CONN.llmOff}</Notice>}
+            {data.mask_names && (
+              <Notice tone={data.mask_names.exists ? undefined : "warn"}>
+                {data.mask_names.exists
+                  ? CONN.maskOk(data.mask_names.count, data.mask_names.shippers)
+                  : CONN.maskMissing(data.mask_names.last_error)}
+              </Notice>
+            )}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+                gridTemplateColumns: "minmax(0, 1fr)",
                 gap: space.md,
               }}
             >
@@ -253,7 +248,6 @@ export function ConnectionsView({ part }: { part: "external" | "ai" }) {
                   row={row}
                   busy={busy !== null}
                   onCheck={() => check(row.key)}
-                  onUse={() => use(row)}
                   onModel={(m) => pickModel(row, m)}
                 />
               ))}

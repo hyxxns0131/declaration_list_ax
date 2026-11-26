@@ -24,7 +24,20 @@ export const JUDGE = {
   // 사이드바 › 품목사항 엑셀 (DESIGN 5-1)
   itemSheetPage: {
     title: "품목사항 엑셀",
-    sub: "신고건 하나를 골라 유니패스 지정 양식의 품목사항 엑셀을 만들고 내려받습니다. AI를 쓰지 않습니다.",
+    sub: "유니패스 지정 양식의 품목사항 엑셀을 만듭니다. 신고건 1개 = 파일 1개이고, 한꺼번에 받으면 ZIP으로 묶입니다. AI를 쓰지 않습니다.",
+    all: "전체 내려받기",
+    allHint: "검사를 통과한 모든 신고건 (ZIP: 신고건마다 xlsx + 검토용 합본 + 제외됨.txt)",
+    byGroup: "같은 품목끼리 내려받기",
+    basis: "묶음 기준",
+    bases: { material: "재질", factory: "제조업소", product: "품목(한글 제품명·모델군)", record: "실적번호" },
+    groupCount: (n: number, nos: number[]) => `신고건 ${n}개 (${nos.map((x) => `#${x}`).join(", ")})`,
+    pickGroups: "내려받을 묶음을 고르세요",
+    downloadGroups: (n: number) => `고른 묶음 내려받기 (${n})`,
+    groupNote: "묶음은 어느 신고건을 받을지 고르는 것입니다. 서로 다른 신고건을 한 파일로 합치지 않습니다(한 품목사항 = 한 신고건).",
+    making: "ZIP 만드는 중…",
+    done: (ok: number, skip: number) => `신고건 ${ok}개를 내려받았습니다${skip ? ` · 제외 ${skip}개` : ""}`,
+    excludedTitle: "제외된 신고건 (ZIP 안 제외됨.txt에도 있음)",
+    one: "신고건별 만들기",
   },
   itemSheet: {
     title: "품목사항 만들기",

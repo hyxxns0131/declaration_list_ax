@@ -52,6 +52,6 @@ export const DASH = {
     { step: "서류 올리기", text: "화주 선적서류(CI·PL·B/L)를 올려 검역이력 행 만들기", href: "/history/upload/" },
     { step: "확인", text: "확인 필요 행을 검수 패널에서 확인", href: "/history/review/" },
     { step: "판단·묶음", text: "재질·실적 근거 확인, 신고건 묶음 점검", href: "/judge/" },
-    { step: "품목사항", text: "신고건별 품목사항 엑셀 내려받기", href: "/judge/item-sheet/" },
+    { step: "품목사항", text: "신고건별 품목사항 엑셀 내려받기", href: "/item-sheet/" },
   ],
 } as const;

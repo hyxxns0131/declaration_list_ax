@@ -28,5 +28,6 @@ export const checkConnections = (service = "all") =>
   api<Connections>("/core/connections/check", { method: "POST", body: JSON.stringify({ service }) });
 
 /** 사용할 AI(model 없이) 또는 그 AI의 모델 저장. */
-export const setAiChoice = (provider: string, model?: string) =>
-  api<Connections>("/core/ai-choice", { method: "PUT", body: JSON.stringify({ provider, model }) });
+/** OpenAI 모델(버전) 저장. AI는 OpenAI만(HS 결정 11/26). 첫 인자는 예전 호출과 맞추려고 남긴 연결 키("openai"). */
+export const setAiChoice = (_key: string, model: string) =>
+  api<Connections>("/core/ai-choice", { method: "PUT", body: JSON.stringify({ provider: "openai", model }) });

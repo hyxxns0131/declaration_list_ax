@@ -6,6 +6,9 @@ GET  /judge/declarations?shipper_id=  저장된 신고건
 POST /judge/item-sheet/preview        고른 행 → 한 신고건인지 + 품목사항 미리보기
 POST /judge/item-sheet                품목사항 엑셀 생성 → file_id
 GET  /judge/item-sheet/{file_id}      엑셀 다운로드
+GET  /judge/item-sheet-groups?shipper_id=&group_by=   같은 품목끼리 묶음 (재질·제조업소·품목·실적번호) — HS 요청 11/26
+POST /judge/item-sheet/bulk           전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx + 합본 + 제외됨.txt) file_id
+GET  /judge/item-sheet/bulk/{file_id} ZIP 다운로드
 """
 
 from fastapi import APIRouter
@@ -13,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.a3_judge.grouping.service import recompute
+from app.a3_judge.item_sheet import bulk as item_bulk
 from app.a3_judge.item_sheet import service as item_sheet
 from app.a3_judge.pipeline.service import judge_detail
 from app.core.errors import AppError
@@ -21,10 +25,18 @@ from app.core.storage import work_db, work_db_more
 
 router = APIRouter(prefix="/judge", tags=["judge"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+ZIP = "application/zip"
 
 
 class RowIds(BaseModel):
     row_ids: list[str]
+
+
+class BulkIn(BaseModel):
+    shipper_id: str
+    declaration_ids: list[str] | None = None
+    group_by: str | None = None  # material | factory | product | record
+    groups: list[str] | None = None
 
 
 @router.post("/declarations")
@@ -45,6 +57,22 @@ def item_sheet_preview(body: RowIds) -> dict:
 @router.post("/item-sheet")
 def item_sheet_create(body: RowIds) -> dict:
     return item_sheet.create(body.row_ids)
+
+
+@router.get("/item-sheet-groups")
+def item_sheet_groups(shipper_id: str, group_by: str) -> list[dict]:
+    return item_bulk.groups(shipper_id, group_by)
+
+
+@router.post("/item-sheet/bulk")
+def item_sheet_bulk(body: BulkIn) -> dict:
+    return item_bulk.export(body.shipper_id, body.declaration_ids, body.group_by, body.groups)
+
+
+@router.get("/item-sheet/bulk/{file_id}")
+def item_sheet_bulk_download(file_id: str) -> FileResponse:
+    filename, path = item_sheet.file_path(file_id)
+    return FileResponse(path, filename=filename, media_type=ZIP)
 
 
 @router.get("/item-sheet/{file_id}")
