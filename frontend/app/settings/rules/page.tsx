@@ -1,14 +1,16 @@
 "use client";
-// 탭 1. 기업 설정 › 규칙 설정 (DESIGN 7-1): 화주 고르기 · 규칙 묶음 · 시험 실행 · 저장. 화주 고르기·추가·삭제는 사이드바 › 화주 선택·관리(/settings). 배치와 상태 연결만. 담당: JUJ
+// 탭 1. 기업 설정 › 규칙 설정 (DESIGN 7장): 왼쪽 화주 목록(＋ 화주 추가 맨 아래) · 오른쪽 규칙 묶음 · 시험 실행 · 저장.
+// 신규 화주 추가는 모달(NewShipperDialog, A4-1 개편 11/26). 화주 삭제는 화주 선택·관리(/settings). 배치와 상태 연결만. 담당: JUJ
 import { useCallback, useEffect, useState } from "react";
 
 import { DryRunCompare } from "@/components/settings/DryRunCompare";
+import { NewShipperDialog } from "@/components/settings/NewShipperDialog";
 import { RuleGroups } from "@/components/settings/RuleGroups";
+import { ShipperList } from "@/components/settings/ShipperList";
 import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
-import { ShipperSelect } from "@/components/ui/ShipperSelect";
 import { ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
-import { colors, font } from "@/components/ui/tokens";
+import { colors, font, space } from "@/components/ui/tokens";
 import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
 import { dryRun, getRules, getShipper, listShippers, saveShipper } from "@/lib/api/settings";
 import { SETTINGS } from "@/lib/text/settings";
@@ -26,6 +28,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState<"" | "save" | "dry">("");
   const [msg, setMsg] = useState("");
   const [dry, setDry] = useState<DryRunOut | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(""); // 등록 완료 문구(다른 화주를 고르면 지움)
 
   const dirty = values !== null && saved !== null && JSON.stringify(values) !== JSON.stringify(saved);
 
@@ -73,8 +77,21 @@ export default function SettingsPage() {
 
   const pick = (id: string) => {
     if (dirty && !window.confirm(SETTINGS.leaveConfirm)) return;
+    setAdded("");
     setCurrent(id);
     rememberShipper(id);
+  };
+
+  const openAdd = () => {
+    if (dirty && !window.confirm(SETTINGS.leaveConfirm)) return; // 등록 뒤 새 화주로 바뀌므로 먼저 묻는다
+    setAdding(true);
+  };
+
+  const onCreated = async (id: string) => {
+    setAdding(false);
+    await loadList(id); // 목록 다시 읽고 새 화주를 고른다 → 오른쪽에 기본 규칙
+    rememberShipper(id); // 다른 탭도 같은 화주
+    setAdded(id);
   };
 
   const change = (key: string, value: RuleValue, exception?: ShipperException) => {
@@ -125,38 +142,50 @@ export default function SettingsPage() {
   const name = shippers.find((s) => s.shipper_id === current)?.display_name ?? current;
 
   return (
-    <div>
-      <PageHeader
-        title={SETTINGS.title}
-        sub={SETTINGS.sub}
-        actions={
-          <>
-            <ShipperSelect shippers={shippers} value={current} onChange={pick} />
-            {dirty && <span style={{ color: colors.edited, fontSize: font.sm }}>✎ {SETTINGS.unsaved}</span>}
-            <Button onClick={runDry} disabled={!values || busy !== ""}>
-              {busy === "dry" ? SETTINGS.running : SETTINGS.dryRun}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={save}
-              disabled={!dirty || busy !== ""}
-              style={dirty ? { boxShadow: `0 0 0 3px ${colors.primarySoft}` } : undefined}
+    // 가운데 정렬 + 최대 너비, 왼쪽 화주 목록 · 오른쪽 규칙 영역 (UI 개편 11/26, 프로토타입 화면 구조)
+    <div style={{ maxWidth: 1140, margin: "0 auto" }}>
+      <PageHeader title={SETTINGS.title} sub={SETTINGS.sub} />
+      <div style={{ display: "flex", flexWrap: "wrap", gap: space.lg - 4, alignItems: "flex-start" }}>
+        <div style={{ flex: "0 0 210px", maxWidth: "100%" }}>
+          <ShipperList shippers={shippers} current={current} onPick={pick} onAdd={openAdd} />
+        </div>
+        <div style={{ flex: "1 1 480px", minWidth: 0 }}>
+          <Card>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: space.sm,
+                flexWrap: "wrap",
+                marginBottom: space.md,
+              }}
             >
-              {busy === "save" ? "저장 중…" : SETTINGS.save}
-            </Button>
-          </>
-        }
-      />
-      <Card title={name}>
-        <p style={{ fontSize: font.sm, color: colors.muted, marginTop: 0 }}>
-          {SETTINGS.driveFolder}: {SETTINGS.driveFolderNote}
-        </p>
-        {error !== null && <ErrorLine error={error} />}
-        {msg && <Notice>{msg}</Notice>}
-        {(!catalog || !values) && error === null && <Skeleton lines={6} />}
-        {catalog && values && <RuleGroups catalog={catalog} values={values} defaults={defaults} onChange={change} />}
-      </Card>
+              <h2 style={{ margin: 0, fontSize: font.xl, fontWeight: 700, color: colors.text, minWidth: 0 }}>{name}</h2>
+              <div style={{ marginLeft: "auto", display: "flex", gap: space.sm, alignItems: "center", flexWrap: "wrap" }}>
+                {dirty && <span style={{ color: colors.edited, fontSize: font.sm }}>✎ {SETTINGS.unsaved}</span>}
+                <Button onClick={runDry} disabled={!values || busy !== ""}>
+                  {busy === "dry" ? SETTINGS.running : SETTINGS.dryRun}
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={save}
+                  disabled={!dirty || busy !== ""}
+                  style={dirty ? { boxShadow: `0 0 0 3px ${colors.primarySoft}` } : undefined}
+                >
+                  {busy === "save" ? "저장 중…" : SETTINGS.save}
+                </Button>
+              </div>
+            </div>
+            {error !== null && <ErrorLine error={error} />}
+            {added && added === current && <Notice>{SETTINGS.pick.added(name)}</Notice>}
+            {msg && <Notice>{msg}</Notice>}
+            {(!catalog || !values) && error === null && <Skeleton lines={6} />}
+            {catalog && values && <RuleGroups catalog={catalog} values={values} defaults={defaults} onChange={change} />}
+          </Card>
+        </div>
+      </div>
       {dry && <DryRunCompare result={dry} onClose={() => setDry(null)} />}
+      {adding && <NewShipperDialog onClose={() => setAdding(false)} onCreated={(id) => void onCreated(id)} />}
     </div>
   );
 }
