@@ -467,7 +467,7 @@ a3_judge/                                  (LSY)
 | 단계 | 하는 일 | 파일 | 구분 |
 |---|---|---|---|
 | 1 | 올리기 → 판별(이름 → 제목 → OpenAI) → 추출(openpyxl·xlrd·pdfplumber → 빈 칸만 OpenAI 멀티모달·JSON, 칸마다 출처 `sources`) → B/L로 선적 건 묶기, 빠진 서류 표시(RULES 11-2) | `a0_reader/classify`, `a0_reader/extract`, `a0_reader/shipments.py` | [개선] |
-| 2 | 서류 3종 대조: 코드 비교 OR OpenAI(`crosscheck_docs.v1`) → 한쪽이라도 다르면 불일치. 불일치 칸은 ai_value를 비우고 flag=mismatch(완성 리스트에 자동으로 넣지 않음). 예외: B/L 번호 칸은 행 묶음 키라 값을 두고 표시만 | `a1_history/crosscheck/` | [신규] |
+| 2 | 서류 3종 대조: 코드 비교 OR OpenAI(`crosscheck_docs.v2`) → 한쪽이라도 다르면 불일치. 불일치 칸은 ai_value를 비우고 flag=mismatch(완성 리스트에 자동으로 넣지 않음). B/L 번호도 비우며 원본 선적 건은 별도 shipment_bl로 조회 | `a1_history/crosscheck/` | [신규] |
 | 3 | 담당자가 값 고르기 → final_value + 근거 MANUAL, 항목 '해결됨'. 다시 대조해도 final_value·chosen 유지 | `a1_history/review/service.py` | [신규] |
 | 4 | 완성된 검역 리스트: 일치한 값과 사람이 고른 값만. 제조사·재질·재질 구분·실적은 a2_registry·a3_judge 공개 함수로 채움(`a1_history/fill/`) | `a1_history/fill/`, `frontend/components/review/ListTable.tsx` | [개선] |
 
@@ -476,7 +476,7 @@ a3_judge/                                  (LSY)
 - **필수 칸 14개(확정, HS 결정 11/26):** B/L Number · 모선명 · 제조사 · 화물관리번호 · 한글 제품명(모델넘버) · 입수 · 카톤 수 · 순중량 · 가격(USD) · 재질 · 실적접수번호(승인일) · 영문 제품명 · 재질 구분 · 반입일. 정의는 `a1_history/rows/steps.py`의 `REQUIRED_COLUMNS`. 단계 표시줄 ③ "빈 필수 칸 행"이 이 목록을 센다.
 - **수입신고필증 분류(HS 결정 11/26):** 파일 이름에 '수입신고필증'·'신고필증'이 있거나 본문 제목이 '수입신고필증'·'수입신고서'면 `IMPORT_DECL`. 이름 규칙에서 맨 앞에 둔다(이름에 B/L 번호가 섞여도 B/L로 보지 않게).
 - **엑셀 한 파일에 CI·PL 시트가 같이 있을 때(HS 11/26 실제 샘플):** 시트마다 읽어 서류 종류마다 1개씩 만든다(`extract_documents`). 'CI SPARE PARTS'·'SPARE PARTS' 같은 부분품 시트는 그 종류 서류에 합치고 줄을 부분품으로 표시한다. 전에는 첫 시트만 읽어 PL(카톤·순중량)을 놓쳤다.
-- **모선명(HS 결정 11/26 "문서랑 둘이 비교해서 다르면 알려주게"):** 유니패스 모선명을 모선 칸 근거(`UNIPASS`, note "유니패스 모선명: …")에 따로 남기고, 서류(CI·PL·B/L) 모선과 배 이름으로 대조한다(공백·'/' 뒤 항차·'V.' 항차 무시). 다르면 불일치 → ② 검수 패널에 '유니패스' 칸이 서류 옆에 나란히 보이고 담당자가 고른다(`resolve` source `UNIPASS`).
+- **모선명(HS 결정 11/27, 기존 도구 merger.check_against_unipass 11/11 실무 확인과 같음):** 유니패스 모선명이 있으면 **그 값을 자동으로 넣는다**(근거 `UNIPASS`, note "유니패스 모선명: …"). 서류(CI·PL·B/L) 모선과 배 이름이 달라도(환적 등) 불일치로 막지 않고 **참고로만** 보인다 — ② 검수 패널 회색 "참고"와 유니패스 칸, ③ 비고 "참고: 모선: 유니패스 값 사용, 서류 …". 검수할 일·미해결 수에 세지 않는다. 유니패스 값이 없으면(키 없음·조회 실패, 지금 mock) 서류끼리 대조하고 다르면 불일치 → 담당자가 고른다. final_value는 덮지 않는다. (11/26의 "다르면 불일치로 막기"는 11/27 결정으로 바뀜)
 - **스캔본·사진(HS 결정 11/26 "캡쳐본으로, 화주명 먼저 가리고 png로"):** 페이지를 PNG로 만들고 Windows 기본 OCR(`a0_reader/extract/win_ocr.ps1`, 새 라이브러리 없음)로 낱말 위치를 찾아 화주명(화주 설정 `mask_names`, 회사 형태 글자 뺀 이름도)을 검은 칸으로 덮은 쪽만 OpenAI로 보낸다. 이름을 못 찾은 쪽·가릴 이름이 없는 화주·OCR이 안 되는 PC는 보내지 않고 "화주명을 가리지 못해 AI로 보내지 않음 - 직접 입력"으로 둔다.
 - **입수 = 전체 개수(PCS 합계) (HS 결정 11/26):** 실제 검역이력이 그렇게 쓴다(A기업 57행: 입수 < 카톤 0행, 1개 1카톤 47행, 부분품 9행은 PCS 합계 / B기업은 카톤 칸 없이 입수만). 값은 서류의 수량(PCS·QUANTITY·수량) 칸, 없으면 카톤당 수량 × 카톤 수(`DocumentLine.pcs()`), 둘 다 없으면 비운다. 카톤당 수량은 `lines[].qty_per_carton`과 입수 칸 근거 메모("카톤당 N")에 남긴다. 합친 부분품 행은 부분품 줄 전체 개수의 합(`rows/build.py`). 서류 대조의 '입수' 항목도 전체 개수로 비교한다. **LSY 변경 요청:** `a3_judge/spare_parts/merge.py`가 합친 줄의 `quantity`도 채우게(지금은 build.py가 대신 채움). 품목사항 엑셀은 입수를 쓰지 않아 영향 없음.
 - **등록 정보가 바뀌면:** a2_registry가 수입신고필증·시험성적서를 저장한 뒤 `a1_history.fill.service.on_registry_changed(shipper_id, product_models, record_nos)`를 부른다 → 해당 행만 다시 판단(final_value는 그대로). **YHS 변경 요청(미반영).**
@@ -676,7 +676,7 @@ B사 탭은 `색상` 열이 재질 다음에 있다. 행에는 추가로 `row_id
 1. **한 곳에서만:** `core/llm.py`의 `call_structured(prompt_name, version, inputs, schema)`만 쓴다. 다른 파일에서 SDK를 import하지 않는다. AI는 **OpenAI만** 쓴다(OpenAI만 사용: HS 결정 11/26, 키 `OPENAI_API_KEY`).
 2. **화주명 가리기:** 보내기 전에 `core/masking.py`가 화주명·수입자명·주소의 화주 부분을 `[화주]`로 바꾼다. 돌려받은 값은 다시 채우지 않는다(화주명은 결과에 필요 없다). 글자가 있는 PDF의 페이지 이미지는 그 낱말 위치를 검은 칸으로 덮어 보낸다(`a0_reader/extract/pdf.page_images(redact=)`). 글자가 없는 스캔본·사진은 위치를 몰라 가리지 못한다 — 실제 서류로 보내는 것은 HS 승인 범위에서만(11/26 평가 승인).
 3. **구조화 출력:** 응답은 JSON으로 받고(OpenAI `response_format=json_object`) Pydantic 스키마로 검증한다. 검증 실패·형식 오류면 **1회만** 재시도하고, 또 실패하면 그 칸을 "확인 필요"로 둔다. 기존 도구 기록: Claude의 형식 강제는 복잡한 판독 스키마를 거절했으므로 스키마를 지시문에 붙이고 Pydantic으로 검증했다.
-4. **프롬프트 버전:** 원문은 `backend/prompts/<영역>/<이름>.v<N>.md`. 고칠 때는 새 버전 파일을 만들고 코드에서 버전을 올린다. 예: `read_shipping_docs.v2.md`, `classify_doc.v2.md`, `crosscheck_docs.v1.md`, `material_candidates.v1.md`, `factory_match.v1.md`.
+4. **프롬프트 버전:** 원문은 `backend/prompts/<영역>/<이름>.v<N>.md`. 고칠 때는 새 버전 파일을 만들고 코드에서 버전을 올린다. 예: `read_shipping_docs.v2.md`, `classify_doc.v2.md`, `crosscheck_docs.v2.md`, `material_candidates.v1.md`, `factory_match.v1.md`.
 5. **AI를 쓰지 않는 일:** 품목사항 생성, 신고건 나누기, 실적 만료 계산, 실적 선택(규칙), 가격(USD) 계산, 서류 대조의 숫자 비교(코드가 먼저, AI는 보조).
 6. **AI를 쓰는 일:** 서류 종류 판별(이름·제목으로 모를 때만), 서류 판독(규칙으로 빈 머리 칸·품목 칸만 보충, 스캔본은 페이지 이미지 멀티모달), 서류 대조 보조(코드 비교와 OR, 결론은 담당자), 재질 코드 후보, 제조사 주소 표기 차이 판단(규칙 점수로 애매할 때만), 신제품 재질(P2).
 7. **꺼도 동작:** `LLM_ENABLED=false`면 AI 단계는 건너뛰고 "확인 필요"를 남긴다.
@@ -812,25 +812,27 @@ AI 코딩 도구에 붙여 넣기 전에 `< >` 부분을 채운다.
 **KHS — 서류 판독 (A0-1, P0)**
 ```
 backend/app/a0_reader/ 에 선적서류 판독을 만들어라.
-- 입력: samples/A사/<B/L 폴더>의 CI·PL·B/L(엑셀·PDF). 출력: core/schema/document.py의 ParsedDocument. 작업 폴더: backend/app/a0_reader/extract/
-- 엑셀은 openpyxl, 글자 PDF는 pymupdf로 먼저 읽고, 표가 안 읽히면 core/llm.py의 call_structured("read_shipping_docs", 1, ...)를 부른다.
-- 프롬프트는 backend/prompts/a0_reader/read_shipping_docs.v1.md 에 둔다. 화주명은 core/masking.py로 가린다.
+- 입력: samples/A/<B/L 폴더>의 CI·PL·B/L(엑셀·PDF). 출력: core/schema/document.py의 ParsedDocument. 작업 폴더: backend/app/a0_reader/extract/
+- 엑셀·PDF의 표와 본문을 먼저 읽고, 규칙으로 판독하지 못한 필드는 core/llm.py의 call_structured("a0_reader/read_shipping_docs", 3, ...)로 보충한다.
+- 프롬프트는 backend/prompts/a0_reader/read_shipping_docs.v3.md 에 둔다. 화주명은 core/masking.py로 가린다.
 - backend/app/a0_reader/extract/tests/test_extract.py 에 가상 서류 1건의 필수 칸(B/L, 모선, 제조사, 모델, 입수, 카톤, 순중량, 금액) 테스트를 넣어라.
 ```
 
 **KHS — 검수 패널 (A1-4, P1)**
 ```
-frontend/components/review/ReviewPanel/ 에 서류 검수 패널을 만들어라. DESIGN.md 4장 와이어프레임을 따른다.
+검역 리스트 탭에서 선적서류(CI·PL·B/L)의 B/L 번호·모선·제조사·품목(모델)·수량·중량·금액과 서류 등록 탭에서 확정한 같은 화주 제품의 재질·해외제조업소·유효 정밀검사 실적을 한 표에 보여라.
+행을 누르면 components/review/ReviewPanel.tsx에서 세 서류의 원래 값을 나란히 보여라. 같은 항목·단위·범위의 값만 대조하고 누락은 따로 표시하라.
+코드 또는 OpenAI가 불일치를 찾으면 해당 칸을 비워라. AI는 차이와 오타 후보를 설명하고 담당자는 서류별 값 선택 또는 직접 입력으로 확정한다. 확정 값과 근거는 다시 대조하거나 등록 정보를 갱신해도 보존하라.
 - props: rowId: string, onConfirmed: () => void
-- 데이터: lib/api/history.ts의 getReview(rowId), confirmRow(rowId)만 쓴다.
+- 데이터: lib/api/history.ts의 getReview, resolveRow, confirmRow를 쓴다.
 - 색만으로 구분하지 말고 글자(불일치/수정)를 함께 보여라. 빈·불러오는 중·오류 상태를 모두 그려라.
 ```
 
 **KHS — 탭 3 검역 리스트 (H-1, P0)**
 ```
 frontend/app/history/page.tsx 에 검역이력 표를 만들어라. DESIGN.md 3장을 따른다.
-- 데이터는 lib/api/history.ts(getHistory, getBadges)만 쓴다. 홈에서 데이터를 만들거나 계산하지 마라.
-- 행을 고르면 아래에 components/review/ReviewPanel 을, "품목사항 만들기"는 components/judge/ItemSheetButton 을 불러 쓴다(아직 없으면 자리표시 컴포넌트).
+- 완성된 검역 리스트는 백엔드의 서류 대조와 등록 정보 반영 결과를 표시한다. 서류 값, 담당자 확정 값, 등록 정보의 근거를 구별한다.
+- 행을 고르면 같은 화면 오른쪽에 components/review/ReviewPanel을 열고 저장하면 표를 갱신한다.
 - 버튼은 서류 올리기·품목사항 만들기·새로고침·설정 네 개만 둔다.
 ```
 
