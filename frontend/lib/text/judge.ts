@@ -29,9 +29,12 @@ export const JUDGE = {
   // 사이드바 › 품목사항 엑셀 (DESIGN 5-1)
   itemSheetPage: {
     title: "품목사항 엑셀",
-    sub: "유니패스 지정 양식의 품목사항 엑셀을 만듭니다. 신고건 1개 = 파일 1개이고, 한꺼번에 받으면 ZIP으로 묶입니다. AI를 쓰지 않습니다.",
-    all: "전체 내려받기",
-    allHint: "검사를 통과한 모든 신고건 (ZIP: 신고건마다 xlsx + 검토용 합본 + 제외됨.txt)",
+    sub: "신고용은 신고건 1개 = 파일 1개(유니패스에 그대로 올림)입니다. 여러 신고건을 한눈에 보려면 검토용 전체 엑셀을 받으세요. AI를 쓰지 않습니다.",
+    all: "신고용: 신고건별 ZIP",
+    allHint: "검사를 통과한 모든 신고건 — 신고건마다 xlsx 1개 + 검토용 전체 + 제외됨.txt",
+    review: "검토용 전체 엑셀",
+    reviewHint: "시트 1장에 모든 신고건(사이에 빈 행), 막힌 신고건도 이유와 함께 — 유니패스에 올리는 파일이 아닙니다",
+    reviewFile: (shipper: string) => `품목사항_검토용_${shipper}.xlsx`,
     byGroup: "같은 품목끼리 내려받기",
     basis: "묶음 기준",
     bases: { material: "재질", factory: "제조업소", product: "품목(한글 제품명·모델군)", record: "실적번호" },

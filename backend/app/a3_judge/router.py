@@ -7,12 +7,15 @@ POST /judge/item-sheet/preview        고른 행 → 한 신고건인지 + 품�
 POST /judge/item-sheet                품목사항 엑셀 생성 → file_id
 GET  /judge/item-sheet/{file_id}      엑셀 다운로드
 GET  /judge/item-sheet-groups?shipper_id=&group_by=   같은 품목끼리 묶음 (재질·제조업소·품목·실적번호) — HS 요청 11/26
-POST /judge/item-sheet/bulk           전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx + 합본 + 제외됨.txt) file_id
+GET  /judge/item-sheet/review?shipper_id=&declaration_ids=  검토용 전체 엑셀 1개(신고건 사이 빈 행, 막힌 건 포함) — 시연 피드백 11/27
+POST /judge/item-sheet/bulk           전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx + 검토용 전체 + 제외됨.txt) file_id
 GET  /judge/item-sheet/bulk/{file_id} ZIP 다운로드
 """
 
+from urllib.parse import quote
+
 from fastapi import APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from app.a3_judge.grouping.service import recompute
@@ -23,6 +26,7 @@ from app.core.errors import AppError
 from app.core.schema.declaration import Declaration
 from app.core.storage import work_db, work_db_more
 
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 router = APIRouter(prefix="/judge", tags=["judge"])
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ZIP = "application/zip"
@@ -67,6 +71,19 @@ def item_sheet_groups(shipper_id: str, group_by: str) -> list[dict]:
 @router.post("/item-sheet/bulk")
 def item_sheet_bulk(body: BulkIn) -> dict:
     return item_bulk.export(body.shipper_id, body.declaration_ids, body.group_by, body.groups)
+
+
+@router.get("/item-sheet/review")
+def item_sheet_review(shipper_id: str, declaration_ids: str = "") -> Response:
+    """검토용 전체 엑셀 1개(시트 1장, 신고건 사이 빈 행, 막힌 건도 이유와 함께). 신고용이 아님.
+    declaration_ids: 쉼표로 여러 개(비우면 전체)."""
+    ids = [x for x in declaration_ids.split(",") if x.strip()]
+    filename, data = item_bulk.review_export(shipper_id, ids or None)
+    return Response(
+        data,
+        media_type=XLSX_TYPE,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.get("/item-sheet/bulk/{file_id}")

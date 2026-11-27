@@ -1,7 +1,8 @@
 "use client";
 // 탭 5. 품목사항 엑셀 (DESIGN 5-1, HS 요청 11/26: 판단 탭에서 분리). 담당: LSY (품목사항 로직 a3_judge/item_sheet)
 // - 신고건마다 [품목사항 만들기] (예전과 같음)
-// - [전체 내려받기]: 검사를 통과한 모든 신고건 → ZIP(신고건마다 xlsx + 검토용 합본 + 제외됨.txt)
+// - [신고용: 신고건별 ZIP]: 검사를 통과한 모든 신고건 → ZIP(신고건마다 xlsx + 검토용 전체 + 제외됨.txt)
+// - [검토용 전체 엑셀]: 시트 1장, 신고건 사이 빈 행, 막힌 건도 이유와 함께(신고용 아님, 시연 피드백 11/27)
 // - [같은 품목끼리 내려받기]: 재질·제조업소·품목·실적번호로 묶어 고른 묶음만 ZIP. 신고건을 합치지는 않는다
 import { useCallback, useEffect, useState } from "react";
 
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
-import { createItemBulk, downloadItemBulk, getDeclarations, getItemGroups } from "@/lib/api/judge";
+import { createItemBulk, downloadItemBulk, downloadItemReview, getDeclarations, getItemGroups } from "@/lib/api/judge";
 import { fmtDate } from "@/lib/format";
 import { useShipper } from "@/lib/hooks/useShipper";
 import { T } from "@/lib/text/common";
@@ -66,6 +67,18 @@ export default function ItemSheetPage() {
     }
   };
 
+  const review = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await downloadItemReview(shipperId, I.reviewFile(shipperId));
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toggle = (key: string, on: boolean) => {
     const next = new Set(picked);
     if (on) next.add(key);
@@ -83,6 +96,9 @@ export default function ItemSheetPage() {
             <span style={{ fontSize: font.sm, color: colors.muted }}>
               {T.shipperPick.current}: {shipperName}
             </span>
+            <Button disabled={!shipperId || busy || !decls?.length} onClick={review} title={I.reviewHint}>
+              ⇩ {I.review}
+            </Button>
             <Button variant="primary" disabled={!shipperId || busy || !decls?.length} onClick={() => run({})} title={I.allHint}>
               ⇩ {busy ? I.making : I.all}
             </Button>
