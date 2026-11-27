@@ -72,3 +72,17 @@ export interface ItemBulkOut {
   included: { declaration_id: string; number: number; filename: string; rows: number; warnings: string[] }[];
   excluded: { declaration_id: string; number: number; reasons: string[] }[];
 }
+
+// 모델 자료(드라이브 서류 접수/{화주}/현품사진 및 한글표시 사항/{모델명}) — 읽기만 (11/27)
+export interface ModelDocFile {
+  id: string;
+  name: string;
+  kind: "excel" | "import_decl" | "json" | "image" | "precise" | "folder" | "other";
+}
+
+export interface ModelDocs {
+  ok: boolean;
+  reason: string;
+  path: string;
+  files: ModelDocFile[];
+}

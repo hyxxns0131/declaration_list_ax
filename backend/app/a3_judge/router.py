@@ -10,8 +10,11 @@ GET  /judge/item-sheet-groups?shipper_id=&group_by=   같은 품목끼리 묶음
 GET  /judge/item-sheet/review?shipper_id=&declaration_ids=  검토용 전체 엑셀 1개(신고건 사이 빈 행, 막힌 건 포함) — 시연 피드백 11/27
 POST /judge/item-sheet/bulk           전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx + 검토용 전체 + 제외됨.txt) file_id
 GET  /judge/item-sheet/bulk/{file_id} ZIP 다운로드
+GET  /judge/{row_id}/model-docs       모델 자료(현품사진·라벨 엑셀·수입신고서.json) 목록 — 드라이브 읽기만 (11/27)
+GET  /judge/model-docs/file/{file_id} 모델 자료 파일 내려받기
 """
 
+import mimetypes
 from urllib.parse import quote
 
 from fastapi import APIRouter
@@ -21,6 +24,7 @@ from pydantic import BaseModel
 from app.a3_judge.grouping.service import recompute
 from app.a3_judge.item_sheet import bulk as item_bulk
 from app.a3_judge.item_sheet import service as item_sheet
+from app.a3_judge.model_docs import service as model_docs
 from app.a3_judge.pipeline.service import judge_detail
 from app.core.errors import AppError
 from app.core.schema.declaration import Declaration
@@ -96,6 +100,30 @@ def item_sheet_bulk_download(file_id: str) -> FileResponse:
 def item_sheet_download(file_id: str) -> FileResponse:
     filename, path = item_sheet.file_path(file_id)
     return FileResponse(path, filename=filename, media_type=XLSX)
+
+
+@router.get("/model-docs/file/{file_id}")
+def model_doc_file(file_id: str) -> Response:
+    """모델 자료 파일 내려받기. 목록(/judge/{row_id}/model-docs)으로 보여 준 파일만."""
+    got = model_docs.download_model_doc(file_id)
+    if not got:
+        raise AppError("not_found", "모델 자료를 다시 불러온 뒤 받아 주세요.", 404)
+    name, data = got
+    kind = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    return Response(
+        data,
+        media_type=kind,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"},
+    )
+
+
+@router.get("/{row_id}/model-docs")
+def row_model_docs(row_id: str) -> dict:
+    """그 행 모델의 자료 폴더(서류 접수/{화주}/현품사진 및 한글표시 사항/{모델명}) 파일 목록. 읽기만."""
+    row = work_db.get_row(row_id)
+    if not row:
+        raise AppError("not_found", "행이 없습니다.", 404)
+    return model_docs.find_model_docs(row.shipper_id, row.model)
 
 
 @router.get("/{row_id}")

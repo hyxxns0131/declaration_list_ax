@@ -8,6 +8,7 @@ import type {
   ItemSheetOut,
   ItemSheetPreview,
   JudgeDetail,
+  ModelDocs,
 } from "@/lib/types/judge";
 
 export const getJudge = (rowId: string) => api<JudgeDetail>(`/judge/${encodeURIComponent(rowId)}`);
@@ -63,4 +64,12 @@ export async function downloadItemReview(
 ): Promise<void> {
   const q = qs({ shipper_id: shipperId, declaration_ids: declarationIds.join(",") || null });
   saveBlob(await apiBlob(`/judge/item-sheet/review${q}`), filename);
+}
+
+/** 모델 자료 목록(드라이브 읽기만). 드라이브가 연결되지 않았으면 ok=false + 이유 */
+export const getModelDocs = (rowId: string) =>
+  api<ModelDocs>(`/judge/${encodeURIComponent(rowId)}/model-docs`);
+
+export async function downloadModelDoc(fileId: string, filename: string): Promise<void> {
+  saveBlob(await apiBlob(`/judge/model-docs/file/${encodeURIComponent(fileId)}`), filename);
 }

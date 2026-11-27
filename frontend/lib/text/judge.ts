@@ -48,6 +48,17 @@ export const JUDGE = {
     recordTitle: "정밀검사 실적",
     basis: (d: string) => `비교 기준일 ${d}`,
     noCandidates: "후보 없음",
+    docsTitle: "모델 자료(드라이브)",
+    docsLoading: "모델 자료를 찾는 중…",
+    docsKind: {
+      excel: "현품사진·라벨",
+      import_decl: "수입신고서",
+      json: "JSON",
+      image: "이미지",
+      precise: "정밀실적 폴더",
+      folder: "폴더",
+      other: "파일",
+    } as Record<string, string>,
     status: { 선택: "선택", 후보: "적용 가능", 제외: "제외" } as Record<string, string>,
   },
   // 사이드바 › 판단 근거 (DESIGN 5-2)

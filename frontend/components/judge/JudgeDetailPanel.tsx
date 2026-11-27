@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ErrorLine, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
-import { getJudge } from "@/lib/api/judge";
+import { downloadModelDoc, getJudge, getModelDocs } from "@/lib/api/judge";
 import { fmtDate, shown } from "@/lib/format";
 import { JUDGE } from "@/lib/text/judge";
 import type { Evidence, HistoryRow } from "@/lib/types/history";
-import type { JudgeDetail, RecordCandidate } from "@/lib/types/judge";
+import type { JudgeDetail, ModelDocs, RecordCandidate } from "@/lib/types/judge";
 
 const D = JUDGE.detail;
 const SRC = JUDGE.sources;
@@ -34,7 +34,57 @@ function matches(src: string, e: Evidence): boolean {
   return src === "PHOTO" ? e.source === "PHOTO" || e.source === "LABEL" : e.source === src;
 }
 
-function MaterialCards({ detail }: { detail: JudgeDetail }) {
+// 재질 카드 ④ 안: 드라이브 모델 자료 목록(읽기만). 담당자가 열어 보고 재질을 고른다(사진만으로 확정 안 함)
+function ModelDocsList({ rowId }: { rowId: string }) {
+  const [docs, setDocs] = useState<ModelDocs | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  useEffect(() => {
+    setDocs(null);
+    setError(null);
+    getModelDocs(rowId).then(setDocs).catch(setError);
+  }, [rowId]);
+  return (
+    <div style={{ marginTop: space.xs, borderTop: `1px solid ${colors.border}`, paddingTop: space.xs }}>
+      <div style={{ fontWeight: 700 }}>{D.docsTitle}</div>
+      {error !== null && <ErrorLine error={error} />}
+      {docs === null && error === null && <span style={{ color: colors.muted }}>{D.docsLoading}</span>}
+      {docs && !docs.ok && <div style={{ color: colors.muted }}>{docs.reason}</div>}
+      {docs?.ok && (
+        <>
+          <div style={{ color: colors.muted, wordBreak: "break-all" }}>{docs.path}</div>
+          <ul style={list}>
+            {docs.files.map((f) => (
+              <li key={f.id} style={item}>
+                <Badge tone={f.kind === "precise" ? "needCheck" : "info"}>{D.docsKind[f.kind] ?? f.kind}</Badge>{" "}
+                {f.kind === "precise" || f.kind === "folder" ? (
+                  <span>{f.name}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => downloadModelDoc(f.id, f.name).catch(setError)}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      color: colors.primary,
+                      textAlign: "left",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    ⇩ {f.name}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MaterialCards({ detail, rowId }: { detail: JudgeDetail; rowId: string }) {
   const ev = detail.material?.evidence ?? [];
   const order = detail.material?.order?.length ? detail.material.order : DEFAULT_ORDER;
   const used = ev.find((e) => e.source !== "RULE" && e.source !== "PHOTO" && e.source !== "LABEL")?.source;
@@ -80,6 +130,7 @@ function MaterialCards({ detail }: { detail: JudgeDetail }) {
                 </ul>
               )}
               {src === "PHOTO" && <p style={{ margin: `${space.xs}px 0 0`, color: colors.muted }}>{D.photoNote}</p>}
+              {src === "PHOTO" && <ModelDocsList rowId={rowId} />}
             </section>
           );
         })}
@@ -197,7 +248,7 @@ export function JudgeDetailPanel({ row, onClose }: { row: HistoryRow; onClose: (
       {detail === null && error === null && <Skeleton lines={4} />}
       {detail && (
         <div style={{ display: "grid", gap: space.md }}>
-          <MaterialCards detail={detail} />
+          <MaterialCards detail={detail} rowId={row.row_id} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: space.md }}>
             <FactoryCard detail={detail} />
             <RecordCard detail={detail} />
