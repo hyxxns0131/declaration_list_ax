@@ -36,6 +36,8 @@ export default function JudgePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [evidence, setEvidence] = useState<{ row: HistoryRow; column: string } | null>(null);
+  // 행 체크박스는 '고르기'만 한다. 품목사항은 도구 줄의 별도 버튼으로 만든다(시연 피드백 11/27)
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getShippers()
@@ -62,6 +64,7 @@ export default function JudgePage() {
   useEffect(() => {
     setDecls(null);
     setOpen(new Set());
+    setPicked(new Set());
     setMessage("");
     load();
     if (shipperId) rememberShipper(shipperId);
@@ -81,6 +84,19 @@ export default function JudgePage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const allRowIds = useMemo(() => (decls ?? []).flatMap((d) => d.row_ids), [decls]);
+  // 화면(표) 순서를 지켜서 넘긴다 — 첫 행이 대표품목
+  const pickedIds = useMemo(() => allRowIds.filter((id) => picked.has(id)), [allRowIds, picked]);
+  const pick = (ids: string[], on: boolean) => {
+    const next = new Set(picked);
+    ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+    setPicked(next);
+  };
+  const pickGroup = (d: Declaration) => {
+    setPicked(new Set(d.row_ids));
+    setOpen(new Set([...open, d.declaration_id]));
   };
 
   const toggle = (id: string) => {
@@ -129,6 +145,32 @@ export default function JudgePage() {
 
       {decls && decls.length > 0 && (
         <Card>
+          <div
+            style={{
+              display: "flex",
+              gap: space.sm,
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              marginBottom: space.sm,
+            }}
+          >
+            <div style={{ display: "flex", gap: space.xs, alignItems: "center", flexWrap: "wrap" }}>
+              <Button small onClick={() => setPicked(new Set(allRowIds))}>
+                {P.selectAll}
+              </Button>
+              <Button small variant="ghost" onClick={() => setPicked(new Set())} disabled={!picked.size}>
+                {P.clearAll}
+              </Button>
+              <span style={{ color: colors.muted, fontSize: font.sm }}>{P.pickedCount(pickedIds.length)}</span>
+            </div>
+            <ItemSheetButton
+              shipperId={shipperId}
+              selectedRowIds={pickedIds}
+              onCreated={() => setPicked(new Set())}
+              showReasons
+            />
+          </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -173,7 +215,9 @@ export default function JudgePage() {
                       ))}
                     </td>
                     <td style={td}>
-                      <ItemSheetButton shipperId={shipperId} selectedRowIds={d.row_ids} onCreated={() => setMessage("")} />
+                      <Button small onClick={() => pickGroup(d)}>
+                        {P.pickGroup}
+                      </Button>
                     </td>
                   </tr>
                   {isOpen && (
@@ -182,6 +226,14 @@ export default function JudgePage() {
                         <table style={{ width: "100%", borderCollapse: "collapse" }}>
                           <thead>
                             <tr>
+                              <th style={{ ...th, width: 28 }}>
+                                <input
+                                  type="checkbox"
+                                  aria-label={P.pickGroup}
+                                  checked={d.row_ids.every((id) => picked.has(id))}
+                                  onChange={(e) => pick(d.row_ids, e.target.checked)}
+                                />
+                              </th>
                               <th style={th}>{P.rowCols.model}</th>
                               <th style={th}>{P.rowCols.material}</th>
                               <th style={th}>{P.rowCols.record}</th>
@@ -194,7 +246,7 @@ export default function JudgePage() {
                               if (!row) {
                                 return (
                                   <tr key={id}>
-                                    <td colSpan={4} style={{ ...td, color: colors.muted }}>
+                                    <td colSpan={5} style={{ ...td, color: colors.muted }}>
                                       {id} · {P.rowMissing}
                                     </td>
                                   </tr>
@@ -202,6 +254,14 @@ export default function JudgePage() {
                               }
                               return (
                                 <tr key={id} style={{ color: row.status === "승인" ? colors.approved : colors.text }}>
+                                  <td style={td}>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={P.pickRow(String(shown(row.cells[MODEL_COLUMN]) ?? row.model))}
+                                      checked={picked.has(id)}
+                                      onChange={(e) => pick([id], e.target.checked)}
+                                    />
+                                  </td>
                                   <td style={td}>
                                     {String(shown(row.cells[MODEL_COLUMN]) ?? row.model)}
                                     {row.is_part && <Badge>{P.part}</Badge>}

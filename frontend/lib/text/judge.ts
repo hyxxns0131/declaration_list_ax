@@ -13,6 +13,11 @@ export const JUDGE = {
     rowCols: { model: "제품(모델)", material: "재질", record: "실적접수번호", maker: "제조사" },
     rowMissing: "행 정보를 불러오지 못했습니다",
     part: "부분품",
+    selectAll: "전체 선택",
+    clearAll: "선택 해제",
+    pickedCount: (n: number) => (n ? `선택한 행 ${n}개` : "행을 체크하면 품목사항을 만들 수 있습니다"),
+    pickGroup: "이 묶음 선택",
+    pickRow: (name: string) => `${name} 선택`,
   },
   // 사이드바 › 판단 근거 (DESIGN 5-2)
   evidencePage: {
@@ -49,6 +54,7 @@ export const JUDGE = {
     make: "만들기",
     making: "만드는 중…",
     notOne: "한 신고건만 고를 수 있습니다 (모선/제조사/재질이 다름)",
+    blocked: "선택한 행으로는 품목사항을 만들 수 없습니다:",
     noneSelected: "행을 고르거나 신고건 구분선의 [이 묶음 선택]을 누르세요",
     noArrival: "반입일이 없습니다. 그래도 만들까요?",
     noRecord: "실적접수번호가 빈 행이 있습니다:",
