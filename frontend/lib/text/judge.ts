@@ -18,6 +18,37 @@ export const JUDGE = {
     pickedCount: (n: number) => (n ? `선택한 행 ${n}개` : "행을 체크하면 품목사항을 만들 수 있습니다"),
     pickGroup: "이 묶음 선택",
     pickRow: (name: string) => `${name} 선택`,
+    noRecord: "실적 없음",
+    flaggedRows: (n: number) => `확인할 행 ${n}개`,
+    openDetail: "재질·제조업소·실적 근거 보기",
+  },
+  // 현재 적용 중인 규칙(읽기 전용) — 바꾸기는 탭 1 기업 설정(은진 파트) (시연 피드백 ③)
+  rules: {
+    title: "현재 적용 중인 규칙",
+    sub: "이 화주의 판단·묶음 규칙입니다. 여기서는 바꿀 수 없습니다.",
+    edit: "기업 설정에서 바꾸기 →",
+    on: "켬",
+    off: "끔",
+    none: "없음",
+    show: "펼치기",
+    hide: "접기",
+    groups: ["material", "grouping", "factory"],
+  },
+  // 행을 누르면 열리는 상세 패널 (프로토타입 반영, 시연 피드백 ③)
+  detail: {
+    hint: "행의 제품명을 누르면 아래에 재질·제조업소·실적 근거가 열립니다.",
+    close: "닫기",
+    materialTitle: "재질 근거",
+    materialOrder: "판단 순서(기업 설정)",
+    used: "이 근거로 정함",
+    other: "다른 근거",
+    empty: "자료 없음",
+    photoNote: "사진·라벨만으로 재질을 확정하지 않습니다",
+    factoryTitle: "제조업소",
+    recordTitle: "정밀검사 실적",
+    basis: (d: string) => `비교 기준일 ${d}`,
+    noCandidates: "후보 없음",
+    status: { 선택: "선택", 후보: "적용 가능", 제외: "제외" } as Record<string, string>,
   },
   // 사이드바 › 판단 근거 (DESIGN 5-2)
   evidencePage: {

@@ -18,6 +18,11 @@ export interface RecordCandidate {
   expires_on: string | null;
   expired: boolean;
   fits: boolean;
+  // 근거 패널용(11/26 백엔드 [개선]): 검사별 통과 여부·빠진 재질·상태·제외 이유
+  checks?: Record<string, boolean>;
+  missing_materials?: string[];
+  status?: "선택" | "후보" | "제외";
+  reason?: string;
 }
 
 export interface JudgeDetail {
@@ -25,9 +30,9 @@ export interface JudgeDetail {
   model: string;
   is_part: boolean;
   locked?: boolean;
-  material?: { candidates: string[]; evidence: Evidence[] };
+  material?: { candidates: string[]; evidence: Evidence[]; order?: string[] };
   maker?: { candidates: FactoryCandidate[]; notes: string[]; address: string };
-  record?: { candidates: RecordCandidate[] };
+  record?: { candidates: RecordCandidate[]; basis_date?: string };
   past_row_id?: string | null;
 }
 

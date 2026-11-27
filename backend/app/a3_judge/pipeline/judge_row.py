@@ -11,7 +11,7 @@ from app.a3_judge.factory.choose import choose_factory
 from app.a3_judge.history_lookup.lookup import find_past
 from app.a3_judge.history_lookup.model_key import join_maker, norm_company, split_maker
 from app.a3_judge.material.codes import material_list
-from app.a3_judge.material.resolve import resolve_material
+from app.a3_judge.material.resolve import DEFAULT_ORDER, resolve_material
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
 from app.a3_judge.record_pick import no_record
@@ -221,7 +221,7 @@ def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeCon
 
 
 def _record(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext, address: str) -> dict:
-    detail: dict = {"candidates": []}
+    detail: dict = {"candidates": [], "basis_date": ctx.today.isoformat()}
     if not ctx.records:
         _record_from_history(row, past, ctx)
         return detail
@@ -323,6 +323,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
 
     _names(row, past, from_main, product)
 
+    order = list(ctx.rule("material_source_order", []) or []) or None  # type: ignore[call-overload]
     m = resolve_material(
         row.model,
         past,
@@ -330,7 +331,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
         product=product,
         records=ctx.records,
         docs=ctx.docs_for(row),
-        order=list(ctx.rule("material_source_order", []) or []) or None,  # type: ignore[call-overload]
+        order=order,
         known=ctx.known_materials,
     )
     if from_main:
@@ -344,7 +345,12 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     _rule_check(row, ctx, maker_detail.get("address", ""))
     row.refresh_status()
     detail = {
-        "material": {"candidates": m.candidates, "evidence": [e.model_dump() for e in m.evidence]},
+        "material": {
+            "candidates": m.candidates,
+            "evidence": [e.model_dump() for e in m.evidence],
+            # 실제로 쓴 근거 순서(화주 설정 material_source_order) — 화면 재질 카드 4개를 이 순서로 보인다
+            "order": order or list(DEFAULT_ORDER),
+        },
         "maker": maker_detail,
         "record": record_detail,
         "past_row_id": past.row_id if past else None,
