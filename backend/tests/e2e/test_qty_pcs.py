@@ -22,6 +22,7 @@ def test_history_qty_is_total_pieces(client):  # noqa: F811
     assert qty[("RC-100", False)] == 12
     assert qty[("RC-200", False)] == 8
     parts = [v for (m, p), v in qty.items() if p]
+    assert len(parts) == 1  # A사 규칙: 부분품은 본품 모델 1행으로 합친다(회귀 방지)
     assert parts and parts[0] == 40  # 합친 부분품 행 = 부분품 전체 개수 합
     note = next(r for r in rows if r["model"] == "RC-100" and not r["is_part"])["cells"]["입수"]
     assert "카톤당 1" in note["evidence"][0]["note"]

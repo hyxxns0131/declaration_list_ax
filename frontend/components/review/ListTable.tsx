@@ -1,20 +1,21 @@
 "use client";
-// 화면 ③ 완성된 검역 리스트 표 (검역 리스트 탭 4단계). components/home/HistoryTable을 바탕으로 넓힘(그 파일은 그대로 둔다).
-// - 칸 묶음 머리줄(서류·운송·제품·가격·등록 정보·진행), 머리글·왼쪽 칸(체크·상태·B/L·한글 제품명) 고정, 줄무늬, 행 높이 36px 이상
-// - 값 출처 표시: 사람이 고른·고친 값 = 주황 ✎, 등록 정보(수입신고필증·시험성적서·규칙·이력)로 채운 값 = 파란 점,
-//   서류끼리 달라 비워 둔 값 = 빨간 [검수 필요] → ② 서류 대조·검수 그 행으로
-// - 신고건 구분선, 칸 두 번 눌러 고치기(final_value), 승인 행 잠금
-// 데이터를 만들지 않고 받은 것만 그린다. 담당: KHS
-import type { CSSProperties, ReactNode } from "react";
+// 화면 ③ 완성된 검역 리스트 표 (검역 리스트 탭 4단계). 담당: KHS
+// HS 요청 11/27 "직접 적어서 추가하고 싶다 · 가독성":
+// - 칸을 한 번 누르면 바로 입력(Enter 저장 · Esc 취소) → final_value(근거 MANUAL). 빈 칸·입력 필요·검수 필요 칸도. 승인 행은 잠김
+// - 기호 대신 글자: '입력 필요' · '확인' · '검수 필요'(→ ②) · '등록'(탭 2 등록 정보에서 채움) · ✎(사람이 입력)
+// - 배경색은 2가지만: 입력 필요 = 연노랑, 고른 행 = 연파랑. 사람이 고친 값은 ✎ 표시만
+// - 신고건 구분 줄은 한 줄 요약 + [확인할 것 n개 ▸]로 펼치기(같은 경고는 한 번만)
+// - 글자 14px · 행 44px, 고정 칸은 체크·상태·B/L·한글 제품명
+// 데이터를 만들지 않고 받은 것만 그린다. 저장은 부모가 넘긴 onSave(=PATCH /history/{row_id}).
+import { useState, type CSSProperties, type ReactNode } from "react";
 
-import { GroupLine } from "@/components/judge/DeclarationGroups";
 import { kindOf } from "@/components/judge/JudgeEvidence";
-import { LIST_BLUE, STATE_STYLE } from "@/components/review/listUi";
+import { LIST_BLUE } from "@/components/review/listUi";
 import { Badge, type Tone } from "@/components/ui/Badge";
 import { colors, font, space } from "@/components/ui/tokens";
 import { fmtCell, shown } from "@/lib/format";
 import { HOME } from "@/lib/text/home";
-import type { Declaration, Field, HistoryRow, RowStatus } from "@/lib/types/history";
+import type { CellValue, Declaration, Field, HistoryRow, RowStatus } from "@/lib/types/history";
 
 const L = HOME.listTable;
 
@@ -26,6 +27,7 @@ const STATUS_TONE: Record<RowStatus, Tone> = {
   승인: "neutral",
 };
 const NOT_EDITABLE = new Set(["가격(USD)", "USD 환율", "CI 통화 환율"]);
+const NUMERIC = new Set(["입수", "카톤 수", "순중량", "가격(수출국)"]);
 const NAME_COL = "한글 제품명(모델넘버)";
 const BL_COL = "B/L Number";
 
@@ -44,19 +46,19 @@ const GROUPS: { key: string; label: string; cols: string[] }[] = [
 ];
 const GROUP_OF = new Map(GROUPS.flatMap((g) => g.cols.map((c) => [c, g.key] as const)));
 const REGISTRY_SOURCES = new Set(["IMPORT_DECL", "TEST_REPORT", "RULE", "HISTORY"]);
+const REGISTRY_LABEL: Record<string, string> = { IMPORT_DECL: "수입신고필증", TEST_REPORT: "시험성적서", RULE: "규칙", HISTORY: "지난 이력" };
 
-/** 왼쪽 고정 칸 너비(px): 체크, 상태, B/L, 한글 제품명 */
 const W_CHECK = 34;
-const W_STATUS = 116;
-const W_BL = 136;
-const W_NAME = 230;
+const W_STATUS = 128;
+const W_BL = 140;
+const W_NAME = 240;
 const LEFT = { check: 0, status: W_CHECK, bl: W_CHECK + W_STATUS, name: W_CHECK + W_STATUS + W_BL };
-const HEAD_H = 30;
-const ROW_H = 38;
+const HEAD_H = 32;
+const ROW_H = 44;
 
-type Origin = "manual" | "registry" | "blocked" | "needInput" | "check" | "plain";
+export type Origin = "manual" | "registry" | "blocked" | "needInput" | "check" | "plain";
 
-function originOf(f: Field | undefined, col: string): Origin {
+export function originOf(f: Field | undefined, col: string): Origin {
   if (!f) return "plain";
   const v = shown(f);
   if (f.flag === "mismatch" && (v === null || v === undefined || v === "")) return "blocked";
@@ -70,12 +72,110 @@ function originOf(f: Field | undefined, col: string): Origin {
   return "plain";
 }
 
+function registryNote(f: Field | undefined): string {
+  const e = f?.evidence.find((x) => REGISTRY_SOURCES.has(x.source));
+  if (!e) return "";
+  return `${L.registryFrom}: ${REGISTRY_LABEL[e.source] ?? e.source}${e.note ? ` · ${e.note}` : ""}`;
+}
+
+/** 빈 칸에 '—' 대신 짧은 이유(예: 정밀검사 대상, 등록 정보 없음) */
+function emptyHint(f: Field | undefined): string {
+  const memo = f?.memo ?? "";
+  if (memo.includes("정밀검사 대상")) return L.preciseNeeded;
+  if (memo.includes("등록된 실적") || memo.includes("이력 없음")) return L.noRecord;
+  if (memo.includes("자료 추가 필요")) return L.needDoc;
+  return "—";
+}
+
+/** 상태 이유: 어떤 칸 때문에 그 상태인지(짧게). 기준은 core/schema/history.py refresh_status와 같다 */
+export function statusReason(r: HistoryRow): { short: string; full: string } {
+  const pick = (flags: string[]) =>
+    Object.entries(r.cells)
+      .filter(([, f]) => flags.includes(f.flag) && (f.final_value === null || f.final_value === undefined))
+      .map(([c]) => c.split(" (")[0]);
+  if (r.status === "자료 추가 필요") {
+    const cols = pick(["need_input"]);
+    return { short: cols.slice(0, 2).join("·"), full: L.reasonNeedInput(cols.join(", ")) };
+  }
+  if (r.status === "확인 필요") {
+    const cols = pick(["need_check", "mismatch"]);
+    return { short: cols.slice(0, 2).join("·"), full: L.reasonCheck(cols.join(", ")) };
+  }
+  if (r.status === "반입 전") return { short: "", full: L.reasonBeforeArrival };
+  if (r.status === "신청 전") return { short: "", full: L.reasonReady };
+  return { short: "", full: L.reasonApproved };
+}
+
 function shortLabel(col: string): string {
   return col.split(" (")[0];
 }
 
 function stickyCell(left: number, width: number, bg: string, extra: CSSProperties = {}): CSSProperties {
   return { position: "sticky", left, width, minWidth: width, maxWidth: width, background: bg, zIndex: 1, ...extra };
+}
+
+function Tag({ children, fg, bg }: { children: ReactNode; fg: string; bg: string }) {
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: fg, background: bg, borderRadius: 6, padding: "1px 6px", marginRight: 6, verticalAlign: "middle" }}>
+      {children}
+    </span>
+  );
+}
+
+/** 신고건 한 줄 요약 + 펼치면 확인할 것 목록 (LSY GroupLine 대신 표 안에서 짧게) */
+function GroupRow({
+  index,
+  decl,
+  colSpan,
+  onSelectGroup,
+}: {
+  index: number;
+  decl: Declaration;
+  colSpan: number;
+  onSelectGroup: (rowIds: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const warns = [...new Set(decl.warnings.map((w) => w.replace(/^\?\s*/, "").trim()).filter(Boolean))];
+  const k = decl.key;
+  const parts = [k.vessel_key || L.unknown, k.factory_code || L.unknown, k.material || L.unknown].join(" · ");
+  return (
+    <>
+      <tr>
+        <td colSpan={colSpan} style={{ background: colors.bgSubtle, borderTop: `2px solid ${colors.border}`, padding: `6px ${space.sm}px`, fontSize: font.md }}>
+          <b>{L.decl(index)}</b> <span style={{ color: colors.muted }}>· {parts}</span>
+          {decl.record_nos.length > 0 && <span style={{ color: colors.muted }}> · {L.records(decl.record_nos.length)}</span>}
+          {warns.length > 0 && (
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setOpen(!open)}
+              style={{ marginLeft: space.sm, border: `1px solid ${colors.border}`, background: "#fff", borderRadius: 999, padding: "1px 10px", fontSize: font.sm, cursor: "pointer" }}
+            >
+              {L.declWarn(warns.length)} {open ? "▾" : "▸"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onSelectGroup(decl.row_ids)}
+            style={{ marginLeft: space.sm, border: "none", background: "none", color: LIST_BLUE, fontSize: font.sm, cursor: "pointer" }}
+          >
+            {L.selectGroup}
+          </button>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={colSpan} style={{ background: colors.bgSubtle, padding: `0 ${space.md}px ${space.sm}px`, fontSize: font.sm, color: colors.text }}>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {warns.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
+  );
 }
 
 export function ListTable({
@@ -87,7 +187,8 @@ export function ListTable({
   onSelect,
   onSelectGroup,
   onOpenReview,
-  onEdit,
+  onSave,
+  onDeleteRow,
   onOpenEvidence,
   onMove,
   maxHeight,
@@ -100,12 +201,16 @@ export function ListTable({
   onSelect: (rowId: string, on: boolean) => void;
   onSelectGroup: (rowIds: string[]) => void;
   onOpenReview: (rowId: string) => void;
-  onEdit: (row: HistoryRow, column: string) => void;
+  onSave: (row: HistoryRow, column: string, value: CellValue) => Promise<void>;
+  onDeleteRow: (row: HistoryRow) => void;
   onOpenEvidence: (row: HistoryRow, column: string) => void;
   onMove: (rowId: string, dir: -1 | 1) => void;
   maxHeight?: string;
 }) {
-  // 고정 칸(B/L·한글 제품명)은 왼쪽으로 빼고, 나머지는 칸 묶음 순서로
+  const [editing, setEditing] = useState<{ rowId: string; col: string; value: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
   const rest = columns.filter((c) => c !== BL_COL && c !== NAME_COL);
   const order = GROUPS.map((g) => g.key);
   const sorted = [...rest].sort((a, b) => order.indexOf(GROUP_OF.get(a) ?? "progress") - order.indexOf(GROUP_OF.get(b) ?? "progress"));
@@ -130,37 +235,43 @@ export function ListTable({
   if (others.length) sections.push({ decl: null, rows: others });
   const colSpan = sorted.length + 5;
   let declNo = 0;
-  let zebra = 0;
 
   const th: CSSProperties = {
     position: "sticky",
     top: HEAD_H,
     zIndex: 2,
     background: colors.bgSubtle,
-    fontSize: font.sm,
+    fontSize: font.md,
     fontWeight: 700,
     textAlign: "left",
     padding: `6px ${space.sm}px`,
     borderBottom: `1px solid ${colors.border}`,
     whiteSpace: "nowrap",
   };
-  const groupTh: CSSProperties = {
-    ...th,
-    top: 0,
-    height: HEAD_H,
-    color: colors.muted,
-    fontWeight: 600,
-    borderBottom: `1px solid ${colors.border}`,
-  };
+  const groupTh: CSSProperties = { ...th, top: 0, height: HEAD_H, color: colors.muted, fontWeight: 600 };
   const td: CSSProperties = {
     padding: `0 ${space.sm}px`,
     height: ROW_H,
     borderBottom: `1px solid ${colors.border}`,
     whiteSpace: "nowrap",
-    maxWidth: 260,
+    maxWidth: 240,
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontSize: 13,
+    fontSize: 14,
+  };
+
+  const save = async (r: HistoryRow, c: string, raw: string) => {
+    const v: CellValue = NUMERIC.has(c) && raw.trim() !== "" && !Number.isNaN(Number(raw.replace(/,/g, ""))) ? Number(raw.replace(/,/g, "")) : raw;
+    setSaving(true);
+    setErr("");
+    try {
+      await onSave(r, c, v);
+      setEditing(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderCell = (r: HistoryRow, c: string, locked: boolean, bg: string, sticky?: CSSProperties) => {
@@ -169,58 +280,79 @@ export function ListTable({
     const text = fmtCell(c, shown(f));
     const editable = !locked && !NOT_EDITABLE.has(c);
     const judge = kindOf(c) !== null;
-    let style: CSSProperties = { ...td, background: bg, ...sticky };
-    let mark: ReactNode = null;
+    const isEditing = editing?.rowId === r.row_id && editing.col === c;
+    let style: CSSProperties = { ...td, background: bg, cursor: editable ? "text" : "default", ...sticky };
+    let tag: ReactNode = null;
     let tip = f?.memo ?? "";
     if (locked) style = { ...style, color: colors.approved };
     else if (origin === "manual") {
-      style = { ...style, color: colors.edited, background: colors.editedSoft, fontWeight: 600 };
-      mark = "✎ ";
+      tag = <span style={{ color: colors.edited, fontWeight: 700, marginRight: 4 }} aria-label={L.manual}>✎</span>;
       tip = tip || L.manual;
     } else if (origin === "needInput") {
-      style = { ...style, color: colors.needInputText, background: colors.needInput };
-      tip = tip || STATE_STYLE.needInput.text;
+      style = { ...style, background: colors.needInput };
+      tip = tip || L.needInputTip;
     } else if (origin === "check") {
-      style = { ...style, color: colors.needCheck, background: colors.needCheckSoft };
-      mark = "? ";
+      tag = <Tag fg={colors.needCheck} bg={colors.needCheckSoft}>{L.checkTag}</Tag>;
     } else if (origin === "registry") {
-      mark = <span aria-label={L.registry} title={L.registry} style={{ display: "inline-block", width: 7, height: 7, borderRadius: 999, background: LIST_BLUE, marginRight: 5, verticalAlign: "middle" }} />;
-      tip = tip || L.registry;
+      tag = <Tag fg={LIST_BLUE} bg={colors.primarySoft}>{L.registryTag}</Tag>;
+      tip = tip || registryNote(f);
     }
+    if (isEditing) {
+      return (
+        <td key={c} style={{ ...style, padding: 2, overflow: "visible" }} onClick={(e) => e.stopPropagation()}>
+          <input
+            autoFocus
+            aria-label={`${shortLabel(c)} ${L.typeHere}`}
+            value={editing.value}
+            disabled={saving}
+            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void save(r, c, editing.value);
+              if (e.key === "Escape") setEditing(null);
+            }}
+            onBlur={() => !saving && setEditing(null)}
+            style={{ width: "100%", minWidth: 120, height: ROW_H - 8, fontSize: 14, border: `2px solid ${LIST_BLUE}`, borderRadius: 6, padding: "0 6px" }}
+          />
+        </td>
+      );
+    }
+    const empty = text === "" || text === "-";
     return (
       <td
         key={c}
+        className={editable ? "lt-cell" : undefined}
         style={style}
-        title={[text, NOT_EDITABLE.has(c) ? HOME.computed : tip || (editable ? HOME.editHint : ""), locked ? HOME.locked : ""].filter(Boolean).join(" · ")}
-        onDoubleClick={(e) => {
+        title={[text, NOT_EDITABLE.has(c) ? HOME.computed : tip, editable ? L.clickToType : "", locked ? HOME.locked : ""].filter(Boolean).join(" · ")}
+        onClick={(e) => {
+          if (!editable) return;
           e.stopPropagation();
-          if (editable) onEdit(r, c);
+          const cur = shown(f);
+          setEditing({ rowId: r.row_id, col: c, value: cur === null || cur === undefined ? "" : String(cur) });
         }}
       >
         {origin === "blocked" ? (
           <button
             type="button"
-            aria-label={`${shortLabel(c)} 검수 필요`}
             onClick={(e) => {
               e.stopPropagation();
               onOpenReview(r.row_id);
             }}
             title={f?.memo || L.blockedTip}
-            style={{ color: colors.mismatch, background: colors.mismatchSoft, fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "2px 8px", border: 0, cursor: "pointer" }}
+            style={{ color: colors.mismatch, background: "#fff", border: `1px solid ${colors.mismatch}`, fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "1px 8px", cursor: "pointer" }}
           >
-            ■ {L.blocked}
+            {L.blocked} →
           </button>
         ) : (
           <>
-            {mark}
-            {text}
+            {tag}
+            {empty ? (
+              <span style={{ color: origin === "needInput" ? colors.needInputText : colors.muted, fontSize: 13 }}>
+                {origin === "needInput" ? L.needInput : emptyHint(f)}
+              </span>
+            ) : (
+              text
+            )}
           </>
-        )}
-        {c === NAME_COL && r.cells["모델"]?.flag === "mismatch" && (
-          <button type="button" onClick={() => onOpenReview(r.row_id)}>모델 검수 필요</button>
-        )}
-        {c === NAME_COL && r.model && !text.includes(r.model) && (
-          <span style={{ marginLeft: 4 }}>{r.model}</span>
         )}
         {c === NAME_COL && r.part_lines.length > 0 && (
           <span title={r.part_lines.join("\n")} style={{ color: colors.muted, fontSize: font.sm }}>
@@ -230,23 +362,26 @@ export function ListTable({
         {judge && (
           <button
             type="button"
-            aria-label="판단 근거 보기"
-            title="판단 근거 보기"
+            aria-label={L.evidence}
+            title={L.evidence}
             onClick={(e) => {
               e.stopPropagation();
               onOpenEvidence(r, c);
             }}
-            style={{ border: "none", background: "none", color: colors.primary, cursor: "pointer", padding: "0 2px" }}
+            style={{ border: "none", background: "none", color: colors.primary, cursor: "pointer", padding: "0 2px", fontSize: 12 }}
           >
-            ⓘ
+            {L.evidenceShort}
           </button>
         )}
+        {editable && <span className="lt-pen" aria-hidden>✎</span>}
       </td>
     );
   };
 
   return (
     <div style={{ overflow: "auto", maxHeight: maxHeight ?? "none", border: `1px solid ${colors.border}`, borderRadius: 12, background: "#fff" }}>
+      <style>{`.lt-cell{position:relative}.lt-cell .lt-pen{opacity:0;position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:12px;color:${LIST_BLUE}}.lt-cell:hover{outline:1px solid ${LIST_BLUE};outline-offset:-1px}.lt-cell:hover .lt-pen{opacity:1}`}</style>
+      {err && <div style={{ color: colors.mismatch, fontSize: font.sm, padding: `4px ${space.sm}px` }}>{err}</div>}
       <table style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}>
         <thead>
           <tr>
@@ -275,7 +410,7 @@ export function ListTable({
                 </th>
               );
             })}
-            <th style={th} aria-label="행 이동" />
+            <th style={th} aria-label="행 이동·삭제" />
           </tr>
         </thead>
         <tbody>
@@ -283,10 +418,10 @@ export function ListTable({
             if (sec.decl) declNo += 1;
             return [
               sec.decl ? (
-                <GroupLine key={`g-${sec.decl.declaration_id}`} index={declNo} decl={sec.decl} colSpan={colSpan} onSelectGroup={onSelectGroup} />
+                <GroupRow key={`g-${sec.decl.declaration_id}`} index={declNo} decl={sec.decl} colSpan={colSpan} onSelectGroup={onSelectGroup} />
               ) : (
                 <tr key={`g-rest-${si}`}>
-                  <td colSpan={colSpan} style={{ background: colors.bgSubtle, fontSize: font.sm, padding: space.xs, borderTop: `2px solid ${colors.border}` }}>
+                  <td colSpan={colSpan} style={{ background: colors.bgSubtle, fontSize: font.md, padding: `6px ${space.sm}px`, borderTop: `2px solid ${colors.border}` }}>
                     {L.restGroup}
                   </td>
                 </tr>
@@ -294,22 +429,24 @@ export function ListTable({
               ...sec.rows.map((r) => {
                 const locked = r.status === "승인";
                 const active = r.row_id === activeRowId;
-                zebra += 1;
-                const bg = active ? colors.primarySoft : zebra % 2 === 0 ? "#f8fafc" : "#fff";
+                const bg = active ? colors.primarySoft : "#fff";
                 return (
                   <tr key={r.row_id} onClick={() => onOpenReview(r.row_id)} style={{ cursor: "pointer", color: locked ? colors.approved : undefined }}>
                     <td style={{ ...td, ...stickyCell(LEFT.check, W_CHECK, bg) }} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" aria-label="행 선택" checked={selected.has(r.row_id)} onChange={(e) => onSelect(r.row_id, e.target.checked)} />
                     </td>
-                    <td style={{ ...td, ...stickyCell(LEFT.status, W_STATUS, bg) }}>
+                    <td style={{ ...td, ...stickyCell(LEFT.status, W_STATUS, bg), lineHeight: 1.2 }} title={statusReason(r).full}>
                       <Badge tone={STATUS_TONE[r.status]}>
                         {locked ? "🔒 " : ""}
                         {r.status}
                       </Badge>
-                      {r.confirmed && (
-                        <span style={{ fontSize: font.sm, color: colors.ok }} title={HOME.confirmedMark}>
-                          {" "}✓
+                      {statusReason(r).short && (
+                        <span style={{ display: "block", fontSize: 11, color: colors.muted, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {statusReason(r).short}
                         </span>
+                      )}
+                      {r.manual && (
+                        <span style={{ display: "block", fontSize: 11, color: colors.edited, fontWeight: 700 }}>{L.manualRow}</span>
                       )}
                     </td>
                     {renderCell(r, BL_COL, locked, bg, stickyCell(LEFT.bl, W_BL, bg))}
@@ -324,6 +461,15 @@ export function ListTable({
                           <button type="button" className="mini" title={HOME.moveDown} onClick={() => onMove(r.row_id, 1)}>
                             ↓
                           </button>
+                          {r.manual && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteRow(r)}
+                              style={{ marginLeft: 6, border: "none", background: "none", color: colors.mismatch, cursor: "pointer", fontSize: 12 }}
+                            >
+                              {L.deleteRow}
+                            </button>
+                          )}
                         </>
                       )}
                     </td>

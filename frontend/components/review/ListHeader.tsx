@@ -32,8 +32,11 @@ export function ListHeader({
   onFilter,
   onChanged,
   onMessage,
+  showBadges = true,
 }: {
   title: string;
+  /** ② 화면은 배지 줄을 빼고 미해결/해결됨/전체 한 줄만 쓴다(HS 11/27) */
+  showBadges?: boolean;
   /** 배지를 눌러 행을 거르는 화면(③)만 준다 */
   filter?: BadgeFilter | null;
   onFilter?: (f: BadgeFilter | null) => void;
@@ -77,6 +80,7 @@ export function ListHeader({
         <ShipperSelect shippers={shippers} value={shipperId} onChange={setShipperId} />
         <span style={{ display: "flex", gap: space.xs + 2, flexWrap: "wrap" }}>
           {badges &&
+            showBadges &&
             BADGES.map((b) => {
               const n = b.count(badges);
               const on = filter === b.key;

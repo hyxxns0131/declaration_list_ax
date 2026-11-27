@@ -39,3 +39,24 @@ def test_import_decl_not_bl():
     assert classify("신고필증 BL-TEST-004.pdf") == "IMPORT_DECL"
     assert classify("문서.pdf", "수입신고필증 신고번호 12345") == "IMPORT_DECL"
     assert classify("BL TEST123.pdf") == "BL"
+
+
+def test_fta_draft_is_certificate_of_origin():
+    """FTA 원산지증명서 초안을 B/L로 잘못 보지 않는다(HS 11/27)"""
+    from app.a0_reader.classify.service import classify
+
+    assert classify("ABC123---FTA draft.pdf") == "CO"
+
+
+def test_unknown_document_is_other_not_bl(tmp_path):
+    """종류를 모르는 서류는 '기타'로 둔다(B/L·인보이스로 짐작하지 않음)"""
+    from openpyxl import Workbook
+
+    from app.a0_reader.extract.service import extract_file
+
+    p = tmp_path / "memo.xlsx"
+    wb = Workbook()
+    wb.active.append(["메모", "아무 내용"])
+    wb.save(p)
+    doc = extract_file(p, "memo.xlsx", "A", "f")
+    assert doc.doc_type == "OTHER" and "서류 종류 확인 필요" in doc.warnings
