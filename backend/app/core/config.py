@@ -42,6 +42,17 @@ class Settings(BaseSettings):
     google_credentials_file: str = "credentials.json"
     google_token_file: str = "token.json"
     drive_inbox_folder_id: str = ""
+    drive_law_folder_id: str = ""
+    # OAuth 데스크톱 앱 클라이언트를 .env에서 읽는다(credentials.json 파일 대신, 값이 있으면 우선)
+    google_client_type: str = "installed"
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_auth_uri: str = "https://accounts.google.com/o/oauth2/auth"
+    google_token_uri: str = "https://oauth2.googleapis.com/token"
+    google_redirect_uri: str = "http://localhost:8080/"
+    # 구글 시트 ID (공유본만. 운영용 ID 금지)
+    spreadsheet_id: str = ""  # 검역 이력 (공유본)
+    item_spreadsheet_id: str = ""  # 품목사항 (공유본)
     gmail_sender: str = ""
     alert_email_to: str = ""
 

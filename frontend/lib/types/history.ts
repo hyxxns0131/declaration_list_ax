@@ -115,7 +115,7 @@ export interface ReviewItem {
   // 검역 리스트 탭 2·3단계 (없으면 예전 대조 결과)
   code_different?: boolean;
   ai?: AiCheck | null;
-  status?: "일치" | "불일치" | "해결됨" | "비어 있음";
+  status?: "일치" | "불일치" | "해결됨" | "비어 있음" | "참고";
   chosen?: { source: PickKey | "manual"; value: CellValue; memo: string; note: string };
 }
 

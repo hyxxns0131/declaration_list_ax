@@ -12,12 +12,13 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic import Field as PField
 
+from app.a1_history.crosscheck.service import CI_TOTAL_ITEM
 from app.core import llm
 from app.core.schema.document import ParsedDocument
 from app.core.schema.history import HistoryRow
 
 PROMPT = "a1_history/crosscheck_docs"
-VERSION = 1
+VERSION = 2
 DocName = Literal["CI", "PL", "BL", ""]
 
 
@@ -79,6 +80,7 @@ def analyze(
                 "CI": it["CI"],
                 "PL": it["PL"],
                 "BL": it["BL"],
+                "line_sum": it["sheet"] if it["item"] == CI_TOTAL_ITEM else None,
                 "code_different": it["code_different"],
             }
             for row, items in rows_items
@@ -93,4 +95,26 @@ def analyze(
     for a in out.items:
         rid, _, name = a.key.partition("|")
         res.setdefault(rid, {})[name] = a.model_dump(exclude={"key"})
+    # 짝 후보는 실제 양쪽 서류에 있는 모델만 설명에 붙인다. 행 연결과 값 확정은 하지 않는다.
+    for pair in out.pairs:
+        ci, pl = latest["CI"], latest["PL"]
+        if not ci or not pl or not pair.ci_model or not pair.pl_model:
+            continue
+        if not any(ln.model == pair.ci_model for ln in ci.lines) or not any(
+            ln.model == pair.pl_model for ln in pl.lines
+        ):
+            continue
+        for row, items in rows_items:
+            it = next((i for i in items if i["item"] == "모델"), None)
+            if not it or not it["code_different"]:
+                continue
+            if it["CI"] == pair.ci_model or it["PL"] == pair.pl_model:
+                a = res.setdefault(row.row_id, {}).setdefault(
+                    "모델", AiItem(key="").model_dump(exclude={"key"})
+                )
+                a.update(
+                    same=False,
+                    what=f"모델 대조 후보: CI {pair.ci_model}, PL {pair.pl_model}",
+                    reason=pair.reason,
+                )
     return res

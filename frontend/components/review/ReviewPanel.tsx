@@ -186,6 +186,11 @@ export function ReviewPanel({
                           □ {REVIEW.emptyValue}
                         </span>
                       )}
+                      {st === "참고" && (
+                        <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }} title={REVIEW.refTip}>
+                          ⓘ {REVIEW.refLine}
+                        </div>
+                      )}
                       {it.different && it.ai && (
                         <div style={{ fontSize: 12, color: colors.needCheck, marginTop: 2 }} title={it.ai.reason}>
                           <span aria-label="AI 분석" style={{ fontWeight: 800 }}>AI </span>

@@ -21,7 +21,7 @@ def rules(tmp_path, monkeypatch):
     local_db.migrate()
     d = tmp_path / "rules"
     (d / "shippers").mkdir(parents=True)
-    for name in ("catalog.json", "default.json"):
+    for name in ("catalog.json", "default.json", "customs_code.json"):
         shutil.copy(RULES_DIR / name, d / name)
     for sid in ("A", "B"):
         (d / "shippers" / f"{sid}.json").write_text(
@@ -32,11 +32,11 @@ def rules(tmp_path, monkeypatch):
 
 
 def test_delete_moves_to_backup(rules, tmp_path):
-    service.create_shipper("ZT1", "Z사(테스트)", None, rules)
-    out = service.delete_shipper("ZT1", rules)
-    assert not (rules / "shippers" / "ZT1.json").exists()
+    sid = service.create_shipper("TEST000000003", "Z", rules)["settings"]["shipper_id"]
+    out = service.delete_shipper(sid, rules)
+    assert not (rules / "shippers" / f"{sid}.json").exists()
     backup = tmp_path / "data" / "deleted_shippers" / out["backup"]
-    assert backup.exists() and json.loads(backup.read_text(encoding="utf-8"))["shipper_id"] == "ZT1"
+    assert backup.exists() and json.loads(backup.read_text(encoding="utf-8"))["shipper_id"] == sid
     assert [s["shipper_id"] for s in service.list_shippers(rules)] == ["A", "B"]
 
 

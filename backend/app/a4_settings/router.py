@@ -2,7 +2,8 @@
 
 GET  /settings/rules                      규칙 목록(묶음·설명·기본값)
 GET  /settings/shippers                   화주 목록(가명)
-POST /settings/shippers                   화주 추가(default.json 기본값으로)
+POST /settings/shippers                   화주 추가(통관고유부호 + 별칭, id 자동 생성, default.json 기본값) — A4-1 개편 11/26
+POST /settings/shippers/check             추가 전 미리 검사(형식·중복). 본문으로 받고 부호는 되돌려주지 않음
 GET  /settings/shippers/{id}              화주 설정(기본값과 합친 값, 기본과 다른 키)
 PUT  /settings/shippers/{id}              저장(검증, 모르는 키 거절) → 그 화주 행 재판단
 POST /settings/shippers/{id}/dry-run      시험 실행(저장 없이 전/후)
@@ -10,7 +11,7 @@ DELETE /settings/shippers/{id}            화주 삭제(기본 A·B 불가, 백�
 """
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic import Field as PField
 
 from app.a1_history.rows import service as rows_service
@@ -21,9 +22,12 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 class NewShipper(BaseModel):
-    shipper_id: str
-    display_name: str
-    required_docs: list[str] | None = None
+    """통관고유부호 + 화주 별칭만 받는다. 내부 id·받는 서류는 받지 않는다(옛 shipper_id를 보내면 422)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    customs_code: str = ""
+    alias: str = ""
 
 
 class SaveIn(BaseModel):
@@ -47,7 +51,12 @@ def shippers() -> list[dict]:
 
 @router.post("/shippers")
 def create(body: NewShipper) -> dict:
-    return service.create_shipper(body.shipper_id, body.display_name, body.required_docs)
+    return service.create_shipper(body.customs_code, body.alias)
+
+
+@router.post("/shippers/check")
+def check(body: NewShipper) -> dict:
+    return service.check_new_shipper(body.customs_code, body.alias)
 
 
 @router.get("/shippers/{shipper_id}")
