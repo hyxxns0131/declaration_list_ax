@@ -44,6 +44,7 @@ HIDDEN_COLUMNS = ("USD 환율", "CI 통화", "CI 통화 환율")
 RowStatus = Literal["자료 추가 필요", "확인 필요", "반입 전", "신청 전", "승인"]
 
 # 자주 쓰는 열 이름 (COLUMNS의 값과 같아야 한다)
+C_MODEL = "모델"  # 검수용 모델 칸. 품목사항 양식의 26열에는 포함하지 않는다.
 C_BL = "B/L Number"
 C_ARRIVAL = "반입일"
 C_VESSEL = "모선명"
@@ -72,6 +73,8 @@ class HistoryRow(BaseModel):
     declaration_id: str | None = None
     is_part: bool = False  # 부분품
     parent_row_id: str | None = None
+    source_models: dict[str, str] = PField(default_factory=dict)
+    shipment_bl: str = ""  # 원본 서류 조회 키. 담당자가 확정한 표시 번호와 별도
     model: str = ""  # 모델 코드(이력 조회·같은 행 판정 키). 26칸에는 없는 내부 칸
     part_lines: list[str] = PField(default_factory=list)  # 합친 부분품 원래 줄(모델·품명)
     status: RowStatus = "자료 추가 필요"
@@ -80,6 +83,10 @@ class HistoryRow(BaseModel):
     # 확인함(RULES 11-9): 켜면 확인 필요·불일치 경고를 해제. 자료 추가 필요는 그대로. 다시 누르면 취소
     confirmed: bool = False
     pending: bool = False  # 판독 중(DESIGN 3-1-1 "판독 중…")
+
+    @property
+    def shipment_key(self) -> str:
+        return self.shipment_bl or self.text(C_BL)
 
     @property
     def locked(self) -> bool:
@@ -106,7 +113,8 @@ class HistoryRow(BaseModel):
         """프로그램 값 쓰기. final_value(사람 값)는 건드리지 않는다(AGENTS 0-5)."""
         cell = self.cells.setdefault(col, Field())
         cell.ai_value = value
-        cell.evidence = evidence or []
+        manual = [e for e in cell.evidence if e.source == "MANUAL" and cell.final_value is not None]
+        cell.evidence = [*(evidence or []), *manual]
         if cell.final_value is not None:
             # 사람 값이 프로그램(서류) 값과 다를 때만 주황(edited). 비교할 값이 없으면 ok
             same = value is None or str(cell.final_value) == str(value)

@@ -15,11 +15,12 @@ from app.a1_history.crosscheck.service import (
     STATUS_DONE,
     STATUS_EMPTY,
     STATUS_OK,
+    STATUS_REF,
 )
 from app.a1_history.rows import service as rows_service
 from app.core.errors import AppError
 from app.core.schema.fields import Evidence, Field
-from app.core.schema.history import C_BL, HistoryRow
+from app.core.schema.history import C_MODEL, HistoryRow
 from app.core.storage import local_db, work_db, work_db_more
 
 NUMERIC_HINT = ("수", "중량", "금액", "가격", "입수")
@@ -34,10 +35,10 @@ class Choice(BaseModel):
 
 def crosscheck_all(shipper_id: str) -> dict:
     rows = work_db.list_rows(shipper_id)
-    bls = sorted({r.text(C_BL) for r in rows if r.text(C_BL)})
+    bls = sorted({r.shipment_key for r in rows if r.shipment_key})
     n = 0
     for bl in bls:
-        group = [r for r in rows if r.text(C_BL) == bl and not r.locked]
+        group = [r for r in rows if r.shipment_key == bl and not r.locked]
         if not group:
             continue
         docs = rows_service._latest_by_type(work_db_more.documents_for_bl(shipper_id, bl))
@@ -58,14 +59,15 @@ def list_mismatches(shipper_id: str, status: str | None = None) -> list[dict]:
             if status is None and st in (
                 STATUS_OK,
                 STATUS_EMPTY,
-            ):  # 비어 있음은 알림만(검수할 것 아님)
+                STATUS_REF,
+            ):  # 비어 있음·참고는 알림만(검수할 것 아님)
                 continue
             if status and st != status:
                 continue
             out.append(
                 {
                     "row_id": r.row_id,
-                    "bl_no": r.text(C_BL),
+                    "bl_no": r.shipment_key,
                     "model": r.model,
                     "is_part": r.is_part,
                     **it,
@@ -92,6 +94,7 @@ def resolve(row_id: str, choices: list[Choice]) -> HistoryRow:
         raise AppError("not_found", "행이 없습니다.", 404)
     if row.locked:
         raise AppError("locked", "승인 완료된 행은 고칠 수 없습니다.", 409)
+    row.shipment_bl = row.shipment_key
     items = work_db_more.get_mismatches(row_id)
     by_name = {it["item"]: it for it in items}
     for ch in choices:
@@ -109,6 +112,8 @@ def resolve(row_id: str, choices: list[Choice]) -> HistoryRow:
         if ch.memo:
             note += f" — {ch.memo}"
         col = it.get("cell") or ""
+        if col == C_MODEL:
+            row.model = str(value)
         if col:
             cell = row.cells.setdefault(col, Field())
             cell.final_value = value

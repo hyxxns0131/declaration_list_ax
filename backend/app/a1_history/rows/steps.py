@@ -61,9 +61,9 @@ def _empty(row: HistoryRow, col: str) -> bool:
 
 def steps(rows: list[HistoryRow]) -> dict:
     active = [r for r in rows if not r.locked]
-    shipments = {r.text(C_BL) or f"(B/L 미상:{r.row_id})" for r in rows}
+    shipments = {r.shipment_key or f"(B/L 미상:{r.row_id})" for r in rows}
     missing_docs = {
-        r.text(C_BL) or f"(B/L 미상:{r.row_id})"
+        r.shipment_key or f"(B/L 미상:{r.row_id})"
         for r in active
         if any(_is_missing_doc(c.value) for c in r.cells.values())
     }

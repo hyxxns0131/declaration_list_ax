@@ -12,7 +12,7 @@ from app.core.schema.document import DocumentLine
 Grid = list[list[object]]
 
 PROMPT = "a0_reader/read_shipping_docs"
-VERSION = 2  # v2: 엑셀 격자(탭 구분) 입력, 빈 품목 칸 채우기(HS 11/26)
+VERSION = 3
 MAX_CHARS = 20000  # 보내는 글자 상한(비용). 원문은 로그에 남기지 않는다
 
 

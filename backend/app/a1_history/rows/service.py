@@ -34,9 +34,11 @@ from app.core.schema.document import ParsedDocument
 from app.core.schema.fields import Evidence, Field
 from app.core.schema.history import (
     C_APPROVAL,
+    C_CURRENCY,
     C_MAKER,
     C_MATERIAL,
     C_NAME_KO,
+    C_PRICE,
     C_PRICE_USD,
     C_SPEC,
     COLOR_COLUMN,
@@ -119,7 +121,6 @@ def process_upload(shipper_id: str, files: list[tuple[str, bytes]]) -> dict:
     bl_no = find_bl(docs)
     if bl_no:
         work_db_more.set_folder_bl(folder_id, bl_no)
-        docs = [d.model_copy(update={"bl_no": d.bl_no or bl_no}) for d in docs]
     else:
         warnings.append("B/L 번호를 찾지 못함 — [확인 필요]")
 
@@ -194,10 +195,10 @@ def simulate(
     history = [h for h in work_db.list_rows(shipper_id) if h.text("B/L Number") != bl_no]
     rows = judge_rows(shipper_id, rows, history + rows, settings=settings, extra_docs=docs)
     apply_name_style(rows, settings)
-    fill_prices(rows)
     for r in rows:
         apply_flags(r, crosscheck_row(r, docs, rows))
         r.refresh_status()
+    fill_prices(rows)
     return rows
 
 
@@ -208,17 +209,19 @@ def _values(row: HistoryRow) -> dict:
 def _finish(rows: list[HistoryRow], docs: list[ParsedDocument], arrival_packages: str) -> None:
     """대조 → 가격 → 상태. 저장은 하지 않는다."""
     bl_doc = next((d for d in reversed(docs) if d.doc_type == "BL"), None)
-    fill_prices(rows)
     # 코드 대조 → OpenAI 분석(선적 건 1번) → 둘 중 하나라도 다르면 불일치 → 불일치 칸 막기 (검역 리스트 탭 2단계)
     rows_items = [(r, crosscheck_row(r, docs, rows)) for r in rows]
     mask = all_names()
     ai = analyze_with_ai(rows_items, docs, mask)
     for r, items in rows_items:
+        r.shipment_bl = r.shipment_key
         merge_ai(items, (ai or {}).get(r.row_id))
-        apply_flags(r, items)
         mark_resolved(r, items, work_db_more.get_mismatches(r.row_id))
+        apply_flags(r, items)
         arrival_check(r, bl_doc, arrival_packages)
         work_db_more.save_mismatches(r.row_id, items)
+    fill_prices(rows)
+    for r in rows:
         r.refresh_status()
 
 
@@ -226,10 +229,10 @@ def rebuild_all(shipper_id: str) -> dict:
     """설정 변경 뒤: B/L마다 서류에서 행을 다시 만든다(확정 값 유지). 서류에 더는 없는 행은
     사람이 고친 값이 없으면 지우고, 있으면 남겨서 비고에 '확인 필요'를 단다."""
     rows = work_db.list_rows(shipper_id)
-    bls = sorted({r.text("B/L Number") for r in rows if r.text("B/L Number")})
+    bls = sorted({r.shipment_key for r in rows if r.shipment_key})
     removed, kept = 0, 0
     for bl in bls:
-        existing = [r for r in rows if r.text("B/L Number") == bl]
+        existing = [r for r in rows if r.shipment_key == bl]
         docs = _latest_by_type(work_db_more.documents_for_bl(shipper_id, bl))
         if not docs:
             continue
@@ -261,7 +264,10 @@ def rejudge(shipper_id: str, row_ids: list[str] | None = None) -> int:
     judged = judge_rows(shipper_id, targets, history)
     apply_name_style(judged, get_rules(shipper_id))
     for r in judged:
+        items = work_db_more.get_mismatches(r.row_id)
+        apply_flags(r, items)
         r.refresh_status()
+    fill_prices(judged)
     work_db.save_rows(judged)
     recompute(shipper_id)
     return len(judged)
@@ -298,10 +304,10 @@ def scan_inbox(shipper_id: str) -> dict:
 def refresh(shipper_id: str) -> dict:
     """새로고침: 유니패스(캐시 없이)·대조·가격·판단·신고건을 다시. 확정 값 유지(DESIGN 3-3)."""
     rows = work_db.list_rows(shipper_id)
-    bls = sorted({r.text("B/L Number") for r in rows if r.text("B/L Number")})
+    bls = sorted({r.shipment_key for r in rows if r.shipment_key})
     n = 0
     for bl in bls:
-        group = [r for r in rows if r.text("B/L Number") == bl and not r.locked]
+        group = [r for r in rows if r.shipment_key == bl and not r.locked]
         if not group:
             continue
         cargo = get_cargo(bl, use_cache=False)
@@ -330,6 +336,7 @@ def patch_cell(
         raise AppError("invalid_input", f"모르는 열: {column}")
     if column in COMPUTED and (value is not None or clear):
         raise AppError("computed", "가격(USD)은 계산 칸입니다. 가격(수출국)·환율을 고치세요.", 400)
+    row.shipment_bl = row.shipment_key
     cell = row.cells.setdefault(column, Field())
     if clear:
         cell.final_value = None
@@ -340,7 +347,7 @@ def patch_cell(
         same = str(cell.ai_value) == str(cell.final_value)
         # 사람이 입력한 값(프로그램 값과 다르거나 빈 칸을 채움)은 주황 '사람이 고름·입력' + 근거 MANUAL
         cell.flag = "ok" if same or cell.final_value is None else "edited"
-        if cell.final_value is not None and not same:
+        if cell.final_value is not None:
             cell.evidence = [e for e in cell.evidence if e.source != "MANUAL"] + [
                 Evidence(
                     source="MANUAL",
@@ -352,6 +359,22 @@ def patch_cell(
         if memo == "" and cell.flag in ("need_check", "mismatch"):
             cell.flag = "ok"  # 메모를 지우면 확인함(RULES 11-9)
         cell.memo = memo
+    items = work_db_more.get_mismatches(row_id)
+    for it in items:
+        if it.get("cell") == column and it["different"]:
+            it.pop("chosen", None)
+            if cell.final_value is not None:
+                it["chosen"] = {
+                    "source": "manual",
+                    "value": cell.final_value,
+                    "memo": cell.memo,
+                    "note": "MANUAL: 직접 입력",
+                }
+            it["status"] = "해결됨" if cell.final_value is not None else "불일치"
+    apply_flags(row, items)
+    work_db_more.save_mismatches(row_id, items)
+    if column in (C_PRICE, C_CURRENCY):
+        fill_prices([row])
     if column == C_APPROVAL and cell.value:
         row.status = "승인"
     row.refresh_status()
@@ -477,8 +500,8 @@ def archive_ready(shipper_id: str) -> dict:
     rows = work_db.list_rows(shipper_id)
     by_bl: dict[str, list[HistoryRow]] = {}
     for r in rows:
-        if r.text("B/L Number"):
-            by_bl.setdefault(r.text("B/L Number"), []).append(r)
+        if r.shipment_key:
+            by_bl.setdefault(r.shipment_key, []).append(r)
     ready = [
         bl
         for bl, rs in by_bl.items()
