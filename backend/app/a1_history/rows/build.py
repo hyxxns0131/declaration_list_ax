@@ -6,6 +6,7 @@ RULES 11-2:
 - 가격(수출국) = CI 금액 그대로. 가격(USD)은 계산 칸(관세환율, A1-7)
 """
 
+import re
 import uuid
 
 from app.a1_history.missing.service import MARK_COLUMNS, apply_missing, is_mark
@@ -85,10 +86,37 @@ class _Line:
         )
 
 
+_BARCODE = re.compile(r"^(UPC|EAN|JAN|GTIN|BAR\s*CODE)(\s|:|$)", re.I)
+_NUM_FIELDS = ("qty_per_carton", "quantity", "cartons", "net_kg", "amount")
+
+
+def _is_continuation(ln: DocumentLine) -> bool:
+    """품목이 아닌 줄: 바코드(UPC 등)만 적힌 다음 줄, 모델·수량·금액이 모두 없는 제목 줄(HS 11/27 B사 빈 행 9개)."""
+    if _BARCODE.match(ln.model.strip()):
+        return True
+    return not ln.model.strip() and all(getattr(ln, f) is None for f in _NUM_FIELDS)
+
+
+def item_lines(lines: list[DocumentLine]) -> list[DocumentLine]:
+    """품목 줄만 남긴다. 이어지는 줄(바코드 줄)의 값은 앞 품목 줄의 빈 칸에만 채우고 행을 따로 만들지 않는다.
+    줄이 하나뿐이면 그대로 둔다(서류에 품목이 없어도 B/L 행 1개는 만든다)."""
+    out: list[DocumentLine] = []
+    for ln in lines:
+        if not _is_continuation(ln):
+            out.append(ln.model_copy())
+            continue
+        if out and _BARCODE.match(ln.model.strip()):
+            prev = out[-1]
+            for f in _NUM_FIELDS:
+                if getattr(prev, f) is None and getattr(ln, f) is not None:
+                    setattr(prev, f, getattr(ln, f))
+    return out if out else list(lines[:1])
+
+
 def pair_lines(ci: ParsedDocument | None, pl: ParsedDocument | None) -> list[_Line]:
-    pl_lines = list(pl.lines) if pl else []
+    pl_lines = item_lines(list(pl.lines)) if pl else []
     out: list[_Line] = []
-    for c in ci.lines if ci else []:
+    for c in item_lines(list(ci.lines)) if ci else []:
         hit = next(
             (p for p in pl_lines if p.model.upper() == c.model.upper() and p.is_part == c.is_part),
             None,

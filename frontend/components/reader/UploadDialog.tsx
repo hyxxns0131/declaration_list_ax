@@ -30,9 +30,12 @@ export function UploadDialog({
   onUploaded,
   onStart,
   onEnd,
+  folderId,
 }: {
   shipperId: string;
   shipperName: string;
+  /** 주면 그 선적 건(폴더)에 서류를 더 올린다(화면 ① [이 건에 서류 더 올리기], HS 요청 11/27) */
+  folderId?: string;
   onClose: () => void;
   onUploaded: (rowIds: string[], result: UploadOut) => void;
   onStart?: () => void;
@@ -82,7 +85,7 @@ export function UploadDialog({
     setError(null);
     onStart?.();
     try {
-      const out = await uploadDocs(shipperId, files);
+      const out = await uploadDocs(shipperId, files, folderId);
       setResult(out);
       setPhase("done");
       onUploaded([...out.created, ...out.updated], out);
@@ -129,7 +132,10 @@ export function UploadDialog({
           padding: space.lg,
         }}
       >
-        <div style={{ fontSize: font.sm, color: colors.muted, marginBottom: space.sm }}>{READER.title(shipperName)}</div>
+        <div style={{ fontSize: font.sm, color: colors.muted, marginBottom: space.sm }}>
+          {READER.title(shipperName)}
+          {folderId ? ` · ${READER.addToShipment}` : ""}
+        </div>
 
         {/* (가) 끌어놓기 영역 */}
         <div

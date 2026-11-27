@@ -79,6 +79,7 @@ class HistoryRow(BaseModel):
     part_lines: list[str] = PField(default_factory=list)  # 합친 부분품 원래 줄(모델·품명)
     status: RowStatus = "자료 추가 필요"
     source_doc_ids: list[str] = PField(default_factory=list)
+    manual: bool = False  # 담당자가 ③에서 직접 추가한 행(서류 없음). 재판독·재실행이 지우거나 덮지 않는다(HS 요청 11/27)
     cells: dict[str, Field] = PField(default_factory=dict)  # 키 = COLUMNS의 열 이름
     # 확인함(RULES 11-9): 켜면 확인 필요·불일치 경고를 해제. 자료 추가 필요는 그대로. 다시 누르면 취소
     confirmed: bool = False

@@ -44,17 +44,39 @@ def _first(docs: list[ParsedDocument], t: str) -> ParsedDocument | None:
     return next((d for d in reversed(docs) if d.doc_type == t), None)  # 가장 최근 서류
 
 
-def _lines_for(row: HistoryRow, doc: ParsedDocument | None) -> list[DocumentLine]:
+def _model_of(row: HistoryRow, doc_type: str) -> str:
+    return row.source_models.get(doc_type, row.model).upper()
+
+
+def _lines_for(
+    row: HistoryRow, doc: ParsedDocument | None, bl_rows: list[HistoryRow] | None = None
+) -> list[DocumentLine]:
     if not doc:
         return []
     if row.is_part and row.part_lines:  # 합친 부분품 행 = 부분품 줄 전부
         return [ln for ln in doc.lines if ln.is_part]
-    return [
-        ln
-        for ln in doc.lines
-        if ln.model.upper() == row.source_models.get(doc.doc_type, row.model).upper()
-        and ln.is_part == row.is_part
+    key = _model_of(row, doc.doc_type)
+    hits = [ln for ln in doc.lines if ln.model.upper() == key and ln.is_part == row.is_part]
+    # 같은 모델이 서류에 여러 줄이고 리스트에도 같은 수의 행이면 순서대로 한 줄씩(HS 11/27:
+    # 900박스 줄 + 1박스 줄을 합쳐 901로 비교하던 문제). 수가 다르면 전부 합쳐 비교한다.
+    twins = [
+        r
+        for r in (bl_rows or [])
+        if not r.manual and _model_of(r, doc.doc_type) == key and r.is_part == row.is_part
     ]
+    ids = [r.row_id for r in twins]
+    if len(hits) > 1 and len(twins) == len(hits) and row.row_id in ids:
+        return [hits[ids.index(row.row_id)]]
+    if len(hits) == 1 and len(twins) > 1:
+        # 서류(주로 B/L)는 한 줄에 합계로, 리스트는 여러 행: 한 행 값과 비교할 수 없다 → 이 서류는 비움
+        # (합계는 '총 포장 수'에서 본다, HS 11/27 900+1 행이 B/L 901과 각각 불일치로 뜨던 문제)
+        return []
+    return hits
+
+
+def _same_currency(cur: str, doc: ParsedDocument | None) -> bool:
+    other = ((doc.currency if doc else "") or "").strip().upper()
+    return not other or not cur or other == cur.strip().upper()
 
 
 def _sum(lines: list[DocumentLine], name: str) -> float | None:
@@ -125,6 +147,15 @@ def vessel_item(ci: object, pl: object, bl: object, up: str | None, sheet: objec
 
 def item(name: str, ci: object, pl: object, bl: object, sheet: object, cell: str = "") -> dict:
     diff = _different([ci, pl, bl])
+    docs = [v for v in (ci, pl, bl) if isinstance(v, int | float)]
+    list_diff = bool(
+        cell
+        and not diff
+        and docs
+        and isinstance(sheet, int | float)
+        and _different([docs[0], sheet])
+    )
+    diff = diff or list_diff
     return {
         "item": name,
         "CI": ci,
@@ -136,6 +167,7 @@ def item(name: str, ci: object, pl: object, bl: object, sheet: object, cell: str
         "ai": None,  # OpenAI 분석(ai_check.analyze). None = 분석 안 함(꺼짐·키 없음)
         "different": diff,  # 최종: 코드와 AI 중 하나라도 다르면 True
         "status": "불일치" if diff else "일치",  # 일치 / 불일치 / 해결됨
+        "list_diff": list_diff,  # 서류끼리는 같고 완성된 리스트 값만 다름
     }
 
 
@@ -183,7 +215,7 @@ def crosscheck_row(
     row: HistoryRow, docs: list[ParsedDocument], bl_rows: list[HistoryRow]
 ) -> list[dict]:
     ci, pl, bl = (_first(docs, t) for t in DOC_COLS)
-    ci_l, pl_l, bl_l = (_lines_for(row, doc) for doc in (ci, pl, bl))
+    ci_l, pl_l, bl_l = (_lines_for(row, doc, bl_rows) for doc in (ci, pl, bl))
     # B/L에도 한 품목만 있고 CI·PL 쪽도 한 품목일 때에는 모델 철자 자체를 비교한다.
     if bl and len(bl.lines) == 1 and len(bl_rows) == 1 and not row.part_lines:
         bl_l = bl.lines
@@ -248,8 +280,9 @@ def crosscheck_row(
         item(
             f"금액({cur})" if cur else "금액",
             _sum(ci_l, "amount"),
-            _sum(pl_l, "amount"),
-            _sum(bl_l, "amount"),
+            # 통화가 다른 서류의 금액은 비교하지 않는다(HS 11/27: CI는 KRW, PL은 USD인 건이 전부 불일치로 뜸)
+            _sum(pl_l, "amount") if _same_currency(cur, pl) else None,
+            _sum(bl_l, "amount") if _same_currency(cur, bl) else None,
             _num(row.val(C_PRICE)),
             C_PRICE,
         ),
@@ -281,7 +314,10 @@ def crosscheck_row(
             it["code_different"] = it["different"] = False
             it["status"] = STATUS_EMPTY
         else:
-            diff = abs(ci.total_amount - line_sum) > TOLERANCE
+            # 부분품 시트 줄을 CI에 합쳐 두므로, TOTAL이 '본품 줄 합'이나 '전체 줄 합' 중 하나와 맞으면 일치(HS 11/27)
+            main_sum = _sum([ln for ln in ci.lines if not ln.is_part], "amount")
+            sums = [v for v in (line_sum, main_sum) if v is not None]
+            diff = all(abs(ci.total_amount - v) > TOLERANCE for v in sums)
             it["code_different"] = it["different"] = diff
             it["status"] = STATUS_BAD if diff else STATUS_OK
         out.append(it)

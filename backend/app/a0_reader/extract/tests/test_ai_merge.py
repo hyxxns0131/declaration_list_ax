@@ -35,7 +35,8 @@ def test_grid_text_tab_rows():
     assert grid_text([["MODEL", "CTNS"], [None, ""], ["RC-100", 8]]) == "MODEL\tCTNS\nRC-100\t8"
 
 
-def test_merge_fills_missing_model_by_order():
+def test_merge_uses_ai_lines_when_rules_found_no_models():
+    """규칙이 모델을 하나도 못 읽었으면 순서로 짝짓지 않고 AI 줄을 통째로(값 밀림 방지, HS 11/27)"""
     doc = _doc("PL", [DocumentLine(net_kg=80), DocumentLine(net_kg=90)])
     merge_lines(
         doc,
@@ -43,7 +44,7 @@ def test_merge_fills_missing_model_by_order():
         "llm",
     )
     assert [ln.model for ln in doc.lines] == ["RC-100", "RC-200"]
-    assert doc.lines[0].net_kg == 80 and doc.lines[1].cartons == 9
+    assert doc.lines[0].cartons == 8 and doc.sources["lines"] == "llm"
 
 
 def test_merge_uses_ai_lines_when_no_models_and_counts_differ():

@@ -11,6 +11,7 @@ import type {
   RefreshResult,
   ResolveChoice,
   Review,
+  ReviewRows,
 } from "@/lib/types/history";
 
 export const getHistory = (shipperId: string, opts: { status?: string; attention?: boolean } = {}) =>
@@ -61,10 +62,31 @@ export const confirmRow = (rowId: string, on: boolean) =>
   });
 
 export const deleteRow = (rowId: string) =>
-  api<{ ok: boolean }>(`/history/${encodeURIComponent(rowId)}`, { method: "DELETE" });
+  api<{ ok: boolean; row: HistoryRow }>(`/history/${encodeURIComponent(rowId)}`, { method: "DELETE" });
+
+/** ③ [+ 행 직접 추가] */
+export const createManualRow = (shipperId: string, blNo: string, values: Record<string, CellValue>) =>
+  api<HistoryRow>("/history/rows", {
+    method: "POST",
+    body: JSON.stringify({ shipper_id: shipperId, bl_no: blNo, values }),
+  });
+
+/** 지운 행 되돌리기 */
+export const restoreRow = (row: HistoryRow) =>
+  api<HistoryRow>("/history/rows/restore", { method: "POST", body: JSON.stringify(row) });
 
 export const moveRow = (rowId: string, beforeRowId: string | null) =>
   api<{ ok: boolean }>(`/history/${encodeURIComponent(rowId)}/move`, {
     method: "POST",
     body: JSON.stringify({ before_row_id: beforeRowId }),
+  });
+
+/** 화면 ② 왼쪽 목록: 행·필터 숫자를 한 결과로 */
+export const getReviewRows = (shipperId: string) =>
+  api<ReviewRows>(`/history/review-rows${qs({ shipper_id: shipperId })}`);
+
+/** ③을 열 때: 등록 정보(2번 탭)가 바뀌었으면 자동으로 다시 채우기 */
+export const fillIfChanged = (shipperId: string) =>
+  api<{ changed: boolean; judged?: number; need_registry?: number }>(`/history/fill-if-changed${qs({ shipper_id: shipperId })}`, {
+    method: "POST",
   });

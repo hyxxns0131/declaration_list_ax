@@ -45,6 +45,7 @@ export interface HistoryRow {
   part_lines: string[];
   status: RowStatus;
   source_doc_ids: string[];
+  manual?: boolean; // ③에서 직접 추가한 행(HS 요청 11/27)
   cells: Record<string, Field>;
   confirmed: boolean;
   pending: boolean;
@@ -117,6 +118,7 @@ export interface ReviewItem {
   ai?: AiCheck | null;
   status?: "일치" | "불일치" | "해결됨" | "비어 있음" | "참고";
   chosen?: { source: PickKey | "manual"; value: CellValue; memo: string; note: string };
+  list_diff?: boolean; // 서류끼리는 같고 완성된 리스트 값만 다름
 }
 
 export interface Review {
@@ -175,3 +177,27 @@ export interface ResolveChoice {
   memo?: string;
 }
 
+
+/** 화면 ② 왼쪽 목록(GET /history/review-rows): 필터 숫자와 목록을 한 결과로 (HS 요청 11/27) */
+export interface ReviewRow {
+  row_id: string;
+  bl: string;
+  label: string; // 모델 · (서류마다 다르면) 서류별 모델 · 제품명 · '모델을 읽지 못함'
+  name: string; // 제품명(한글, 없으면 영문)
+  model: string;
+  bl_text: string; // 'B/L 번호' 또는 'B/L 번호 못 찾음 — ①에서 입력'
+  parts: number; // 합친 부분품 수
+  hint: string; // B/L이 없을 때 구분용 파일 이름
+  open: string[]; // 풀리지 않은 대조 항목(쉬운 말)
+  done: string[]; // 사람이 고른 항목
+  reasons: string[]; // '입력 필요: 재질, 실적' 등
+  todo: string; // 카드에 쓰는 할 일 한 줄('서류끼리 다른 값 1개 고르기 · 빈 칸 2개(선적일·재질) — ③에서 입력')
+  open_row: boolean;
+  done_row: boolean;
+}
+
+export interface ReviewRows {
+  rows: ReviewRow[];
+  counts: { open: number; done: number; all: number };
+  by_bl: Record<string, { open_items: number; done_items: number }>;
+}

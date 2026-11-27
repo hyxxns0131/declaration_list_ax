@@ -92,6 +92,11 @@ def get_rates(on: date | None = None) -> tuple[Rates, str]:
     if rates:
         store.fx_put(wk, rates)
         return rates, "live"
+    # 가상 환율(samples)은 UNIPASS_MODE=mock(시험·테스트)일 때만. live에서 못 구하면 비운다(HS 지시 11/27 "가상 자료는 다 빼라")
+    from app.core.config import get_settings
+
+    if get_settings().unipass_mode != "mock":
+        return {}, ""
     rates = _mock()
     return (rates, "mock") if rates else ({}, "")
 
