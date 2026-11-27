@@ -16,6 +16,7 @@ from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
 from app.a3_judge.record_pick.multi_record import choose_split
 from app.a3_judge.record_pick.rank import choose_record, expiry_warning
+from app.a3_judge.rule_check.maker_rule import check_maker
 from app.a3_judge.rule_check.material_rule import check_material
 from app.a3_judge.rule_check.record_rule import check_record
 from app.a3_judge.spec_class.classify import auto_spec
@@ -37,6 +38,7 @@ TAG_MAKER = "제조사"
 TAG_SPEC = "재질 구분"
 TAG_MATERIAL_RULE = "재질 규칙"
 TAG_RECORD_RULE = "실적 규칙"
+TAG_MAKER_RULE = "제조사 규칙"
 
 
 def _is_doc_missing_mark(row: HistoryRow, col: str) -> bool:
@@ -85,7 +87,28 @@ def _maker(
     if cell and cell.final_value:
         detail["notes"].append("담당자가 정한 값")
         detail["address"] = _doc_maker(row, ctx)[1]
+        # 담당자가 고른 코드가 규칙에 맞는지 — 값은 그대로, 비고에만(RULES 11-7·11-9)
+        name, code = split_maker(row.text(C_MAKER))
+        facs, _src = ctx.factory_lookup(name) if code else (None, "")
+        past_codes = {
+            c
+            for c in (
+                split_maker(past.text(C_MAKER))[1] if past else "",
+                (product or {}).get("maker_code", ""),
+            )
+            if c
+        }
+        problems = check_maker(
+            code,
+            facs,
+            detail["address"],
+            past_codes,
+            bool(ctx.rule("prefer_past_factory_code", False)),
+            ctx.addr_min_score,
+        )
+        row.set_note(TAG_MAKER_RULE, " / ".join(problems) or None)
         return detail
+    row.set_note(TAG_MAKER_RULE, None)  # 사람 값이 없으면 규칙 경고도 없음
     doc_name, doc_addr, doc_id = _doc_maker(row, ctx)
     detail["address"] = doc_addr
     past_val = past.text(C_MAKER) if past else ""
