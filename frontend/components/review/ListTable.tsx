@@ -5,7 +5,6 @@
 //   서류끼리 달라 비워 둔 값 = 빨간 [검수 필요] → ② 서류 대조·검수 그 행으로
 // - 신고건 구분선, 칸 두 번 눌러 고치기(final_value), 승인 행 잠금
 // 데이터를 만들지 않고 받은 것만 그린다. 담당: KHS
-import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 import { GroupLine } from "@/components/judge/DeclarationGroups";
@@ -199,19 +198,29 @@ export function ListTable({
         }}
       >
         {origin === "blocked" ? (
-          <Link
-            href={`/history/review/?row=${encodeURIComponent(r.row_id)}`}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            aria-label={`${shortLabel(c)} 검수 필요`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenReview(r.row_id);
+            }}
             title={f?.memo || L.blockedTip}
-            style={{ color: colors.mismatch, background: colors.mismatchSoft, fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "2px 8px", textDecoration: "none" }}
+            style={{ color: colors.mismatch, background: colors.mismatchSoft, fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "2px 8px", border: 0, cursor: "pointer" }}
           >
             ■ {L.blocked}
-          </Link>
+          </button>
         ) : (
           <>
             {mark}
             {text}
           </>
+        )}
+        {c === NAME_COL && r.cells["모델"]?.flag === "mismatch" && (
+          <button type="button" onClick={() => onOpenReview(r.row_id)}>모델 검수 필요</button>
+        )}
+        {c === NAME_COL && r.model && !text.includes(r.model) && (
+          <span style={{ marginLeft: 4 }}>{r.model}</span>
         )}
         {c === NAME_COL && r.part_lines.length > 0 && (
           <span title={r.part_lines.join("\n")} style={{ color: colors.muted, fontSize: font.sm }}>

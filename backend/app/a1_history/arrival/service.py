@@ -34,7 +34,16 @@ def apply_cargo(row: HistoryRow, cargo: CargoInfo | None) -> None:
             continue
         row.set_ai(col, v, ev if v else [])
     if cargo.vessel:
-        row.set_ai(C_VESSEL, cargo.vessel, ev)
+        row.set_ai(
+            C_VESSEL,
+            cargo.vessel,
+            [
+                *ev,
+                Evidence(
+                    source="UNIPASS", ref=cargo.bl_no, note=f"유니패스 모선명: {cargo.vessel}"
+                ),
+            ],
+        )
     row.set_note("유니패스", None)
     row.set_note(
         "관리대상화물", cargo.managed_cargo.split(": ", 1)[-1] if cargo.managed_cargo else None

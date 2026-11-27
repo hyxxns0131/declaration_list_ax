@@ -18,6 +18,7 @@ from app.core.schema.history import (
     C_CARTONS,
     C_CURRENCY,
     C_MAKER,
+    C_MODEL,
     C_NAME_EN,
     C_NET,
     C_PRICE,
@@ -95,8 +96,22 @@ def pair_lines(ci: ParsedDocument | None, pl: ParsedDocument | None) -> list[_Li
         if hit:
             pl_lines.remove(hit)
         out.append(_Line(c, hit))
-    if not ci:
-        out.extend(_Line(None, p) for p in pl_lines)
+    # 정확히 일치한 모델을 먼저 제외한다. 양쪽에 한 줄씩만 남고 수량·포장이
+    # 일치할 때만 같은 행에서 모델 오타 후보로 비교한다(RULES 11-2).
+    unmatched = [pair for pair in out if pair.pl is None]
+    if len(unmatched) == len(pl_lines) == 1:
+        pair, candidate = unmatched[0], pl_lines[0]
+        c = pair.ci
+        if (
+            c
+            and c.is_part == candidate.is_part
+            and c.pcs() is not None
+            and c.pcs() == candidate.pcs()
+            and c.cartons is not None
+            and c.cartons == candidate.cartons
+        ):
+            pair.pl = pl_lines.pop()
+    out.extend(_Line(None, p) for p in pl_lines)
     return out
 
 
@@ -132,6 +147,7 @@ def build_rows(
         row = HistoryRow(
             row_id=uuid.uuid4().hex[:12],
             shipper_id=shipper_id,
+            shipment_bl=bl_no,
             model=line.model,
             is_part=line.is_part,
             source_doc_ids=[d.doc_id for d in docs],
@@ -162,7 +178,7 @@ def build_rows(
             ):
                 row.set_ai(col, v or None, up if v else [])
         else:
-            vdoc = bl if bl and bl.vessel else ci
+            vdoc = next((doc for doc in (bl, ci, pl) if doc and doc.vessel), None)
             vessel = (vdoc.vessel if vdoc else "") or None
             if vessel:
                 row.set_ai(C_VESSEL, vessel, _ev(vdoc, "서류 모선명"))
@@ -175,6 +191,12 @@ def build_rows(
             row.set_ai(C_MAKER, co.manufacturer_name, _ev(co, "C/O 생산자"))
 
         pair = src_of.get(id(line))
+        if pair:
+            row.source_models = {
+                src: ln.model for src, ln in (("CI", pair.ci), ("PL", pair.pl)) if ln
+            }
+        if row.model:
+            row.set_ai(C_MODEL, row.model, _ev(ci if pair and pair.ci else pl, "품목 모델"))
         for col, name in ((C_CARTONS, "cartons"), (C_NET, "net_kg")):
             v = getattr(line, name)
             src = pair.pick(name)[1] if pair else "CI"
@@ -224,8 +246,10 @@ def build_rows(
 def _same_row(new: HistoryRow, old: HistoryRow) -> bool:
     if new.is_part != old.is_part:
         return False
-    if new.model and old.model:
-        return new.model.upper() == old.model.upper()
+    new_key = next(iter(new.source_models.values()), new.model)
+    old_key = next(iter(old.source_models.values()), old.model)
+    if new_key and old_key:
+        return new_key.upper() == old_key.upper()
     return new.text(C_QTY) == old.text(C_QTY) and new.text(C_CARTONS) == old.text(C_CARTONS)
 
 
@@ -248,6 +272,10 @@ def merge_with_existing(
             continue
         row = old.model_copy(deep=True)
         row.model, row.is_part = new.model or old.model, new.is_part
+        row.source_models = new.source_models
+        if row.cells.get(C_MODEL) and row.cells[C_MODEL].final_value is not None:
+            row.model = str(row.cells[C_MODEL].final_value)
+        row.shipment_bl = new.shipment_bl
         row.part_lines, row.source_doc_ids = new.part_lines, new.source_doc_ids
         for col, cell in new.cells.items():
             prev = row.cells.get(col)
