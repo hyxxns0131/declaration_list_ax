@@ -14,6 +14,7 @@ from app.a3_judge.material.codes import material_list
 from app.a3_judge.material.resolve import resolve_material
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
+from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.multi_record import choose_split
 from app.a3_judge.record_pick.rank import choose_record, expiry_warning
 from app.a3_judge.rule_check.maker_rule import check_maker
@@ -207,12 +208,12 @@ def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeCon
     no, approved = parse_record_cell(raw)
     if not no:
         row.set_ai(C_RECORD, None, flag="need_check", memo="등록된 실적·이력 없음")
-        row.set_note(TAG_RECORD, "등록된 실적·같은 모델 이력 없음 → 정밀검사 대상인지 확인")
+        row.set_note(TAG_RECORD, no_record.NO_DATA)
         return
     if approved and is_expired(approved, ctx.today):
         exp = expires_on(approved).strftime("%Y.%m.%d")
         row.set_ai(C_RECORD, None, flag="need_check", memo=f"실적 만료 ({no}, {exp})")
-        row.set_note(TAG_RECORD, f"실적 만료 ({no}, {exp}) → 정밀검사 신청 대상")
+        row.set_note(TAG_RECORD, no_record.expired(no, exp))
         return
     e = ev("HISTORY", past.row_id, f"이력 {past.text(C_BL)} 실적 (유효)")  # type: ignore[union-attr]
     row.set_ai(C_RECORD, raw, [e])
