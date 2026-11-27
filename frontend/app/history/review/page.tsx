@@ -194,7 +194,7 @@ function ReviewInner() {
         </Card>
         <Card style={{ marginBottom: 0 }}>
           {active ? (
-            <ReviewPanel rowId={active} onConfirmed={() => load()} onClose={() => setActive(null)} />
+            <ReviewPanel key={active} rowId={active} onConfirmed={() => load()} onClose={() => setActive(null)} />
           ) : (
             <EmptyState text={R.pick} />
           )}

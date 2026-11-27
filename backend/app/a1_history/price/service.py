@@ -27,6 +27,7 @@ def apply_price(
         amount_f = None
     cur = (row.text(C_CURRENCY) or "").upper()
     if amount_f is None or not cur:
+        row.set_ai(C_PRICE_USD, None)
         return
     note = f"관세환율 {basis:%Y.%m.%d} 주({basis_label}, {source or '없음'})"
     ev = [Evidence(source="FX", ref=basis.isoformat(), note=note)]

@@ -8,7 +8,7 @@
 검역 리스트 탭 2단계(HS 요청 11/26, PM 결정: 서류 대조에 OpenAI 분석 사용 — AGENTS 7-5의 예외):
 - 코드 대조(code_different) + OpenAI 분석(ai, crosscheck/ai_check.py) → 하나라도 다르면 '불일치'(보수적).
 - 불일치 칸은 완성된 검역 리스트에 값을 넣지 않는다(ai_value 비움 + flag=mismatch, '불일치 · 검수 필요').
-  예외: B/L Number 칸은 행을 묶는 열쇠라 B/L 서류 값을 남기고 flag만 mismatch(RULES 11-1 B/L 서류 우선).
+  선적 건 조회에는 표시 칸과 독립된 shipment_bl을 쓴다.
 - 담당자가 고른 값(final_value)이 있으면 그 항목은 '해결됨'. 재실행은 final_value를 덮지 않는다.
 """
 
@@ -16,7 +16,23 @@ import re
 
 from app.a1_history.rows.build import UNIPASS_VESSEL
 from app.core.schema.document import DocumentLine, ParsedDocument
-from app.core.schema.history import C_BL, C_CARTONS, C_NET, C_PRICE, C_QTY, C_VESSEL, HistoryRow
+from app.core.schema.fields import Field
+from app.core.schema.history import (
+    C_BL,
+    C_CARTONS,
+    C_CURRENCY,
+    C_MAKER,
+    C_MATERIAL,
+    C_MODEL,
+    C_NAME_KO,
+    C_NET,
+    C_PRICE,
+    C_QTY,
+    C_RECORD,
+    C_SPEC,
+    C_VESSEL,
+    HistoryRow,
+)
 
 DOC_COLS = ("CI", "PL", "BL")
 UNIPASS = "UNIPASS"  # 서류 밖 값: 유니패스 모선명(모선 항목에만)
@@ -36,13 +52,14 @@ def _lines_for(row: HistoryRow, doc: ParsedDocument | None) -> list[DocumentLine
     return [
         ln
         for ln in doc.lines
-        if ln.model.upper() == row.model.upper() and ln.is_part == row.is_part
+        if ln.model.upper() == row.source_models.get(doc.doc_type, row.model).upper()
+        and ln.is_part == row.is_part
     ]
 
 
 def _sum(lines: list[DocumentLine], name: str) -> float | None:
     vals = [getattr(ln, name) for ln in lines if getattr(ln, name) is not None]
-    return round(sum(vals), 3) if vals else None
+    return round(sum(vals), 3) if vals and len(vals) == len(lines) else None
 
 
 def _pcs(lines: list[DocumentLine]) -> float | None:
@@ -88,14 +105,19 @@ def unipass_vessel(row: HistoryRow) -> str | None:
 
 
 def vessel_item(ci: object, pl: object, bl: object, up: str | None, sheet: object) -> dict:
-    """모선: 서류끼리(공백 무시) + 서류 ↔ 유니패스(배 이름만) 대조. 다르면 불일치 → 담당자가 고른다."""
+    """모선(HS 결정 11/27, 기존 도구 merger.check_against_unipass 11/11 실무 확인과 같음):
+    - 유니패스 모선이 있으면 그 값을 쓴다. 서류(B/L 등)와 배 이름이 달라도(환적 등) 막지 않고 '참고'로만 보인다.
+    - 유니패스 값이 없으면(키 없음·조회 실패) 서류끼리 대조한다. 서류끼리 다르면 불일치 → 담당자가 고른다."""
     it = item("모선", ci, pl, bl, sheet, C_VESSEL)
     docs = [str(v) for v in (ci, pl, bl) if v not in (None, "")]
-    keys = {re.sub(r"\s+", "", d.upper()) for d in docs}
-    diff = len(keys) > 1
     if up:
         it[UNIPASS] = up
-        diff = diff or any(vessel_name(d) != vessel_name(up) for d in docs)
+        ref = any(vessel_name(d) != vessel_name(up) for d in docs)
+        it["code_different"] = it["different"] = False
+        it["status"] = STATUS_REF if ref else STATUS_OK
+        return it
+    keys = {re.sub(r"\s+", "", d.upper()) for d in docs}
+    diff = len(keys) > 1
     it["code_different"] = it["different"] = diff
     it["status"] = "불일치" if diff else "일치"
     return it
@@ -120,8 +142,9 @@ def item(name: str, ci: object, pl: object, bl: object, sheet: object, cell: str
 STATUS_OK, STATUS_BAD, STATUS_DONE = "일치", "불일치", "해결됨"
 # 대조할 값이 서류에 없음: 막지 않고 '비어 있음'만 보인다(CI 금액 TOTAL, HS 11/26)
 STATUS_EMPTY = "비어 있음"
+# 다른 값이 있지만 기준 값(유니패스 모선)을 쓰므로 막지 않고 알려만 준다(HS 결정 11/27)
+STATUS_REF = "참고"
 CI_TOTAL_ITEM = "CI 금액 TOTAL (시트 칸 = 줄 합)"
-KEY_CELLS = {C_BL}  # 행을 묶는 열쇠 칸: 불일치여도 값은 남기고 flag만
 
 
 def merge_ai(items: list[dict], ai: dict[str, dict] | None) -> None:
@@ -131,6 +154,8 @@ def merge_ai(items: list[dict], ai: dict[str, dict] | None) -> None:
         it["ai"] = a
         if it.get("status") == STATUS_EMPTY:  # 대조할 값이 없으면 AI 판단도 붙이지 않는다
             it["ai"] = None
+            continue
+        if it.get(UNIPASS):  # 유니패스 기준 값이 있는 항목은 AI가 다르다 해도 막지 않는다(참고만)
             continue
         ai_diff = bool(a) and a.get("same") is False
         it["different"] = bool(it["code_different"] or ai_diff)
@@ -158,15 +183,36 @@ def crosscheck_row(
     row: HistoryRow, docs: list[ParsedDocument], bl_rows: list[HistoryRow]
 ) -> list[dict]:
     ci, pl, bl = (_first(docs, t) for t in DOC_COLS)
-    ci_l, pl_l = _lines_for(row, ci), _lines_for(row, pl)
+    ci_l, pl_l, bl_l = (_lines_for(row, doc) for doc in (ci, pl, bl))
+    # B/L에도 한 품목만 있고 CI·PL 쪽도 한 품목일 때에는 모델 철자 자체를 비교한다.
+    if bl and len(bl.lines) == 1 and len(bl_rows) == 1 and not row.part_lines:
+        bl_l = bl.lines
     cur = (ci.currency if ci else "") or ""
+    model_item = item(
+        "모델",
+        ci_l[0].model if ci_l else None,
+        pl_l[0].model if pl_l else None,
+        bl_l[0].model if bl_l else None,
+        row.model or None,
+        C_MODEL,
+    )
+    if (
+        ci
+        and pl
+        and not row.part_lines
+        and bool(ci_l) != bool(pl_l)
+        and any(ln.model for ln in ci.lines)
+        and any(ln.model for ln in pl.lines)
+    ):
+        # 품목표가 양쪽에 있는데 모델이 한쪽에서만 발견됨. 짝을 임의로 정하지 않는다.
+        model_item.update(code_different=True, different=True, status=STATUS_BAD)
     out = [
+        model_item,
         item(
-            "모델",
-            ci_l[0].model if ci_l else None,
-            pl_l[0].model if pl_l else None,
-            None,
-            row.model or None,
+            "제조사",
+            *((doc.manufacturer_name or None) if doc else None for doc in (ci, pl, bl)),
+            row.val(C_MAKER),
+            C_MAKER,
         ),
         vessel_item(
             (ci.vessel or None) if ci else None,
@@ -179,7 +225,7 @@ def crosscheck_row(
             "카톤 수",
             _sum(ci_l, "cartons"),
             _sum(pl_l, "cartons"),
-            None,
+            _sum(bl_l, "cartons"),
             _num(row.val(C_CARTONS)),
             C_CARTONS,
         ),
@@ -187,18 +233,23 @@ def crosscheck_row(
             "입수",  # 전체 개수(PCS 합계)로 비교(HS 결정 11/26)
             _pcs(ci_l),
             _pcs(pl_l),
-            None,
+            _pcs(bl_l),
             _num(row.val(C_QTY)),
             C_QTY,
         ),
         item(
-            "순중량", _sum(ci_l, "net_kg"), _sum(pl_l, "net_kg"), None, _num(row.val(C_NET)), C_NET
+            "순중량",
+            _sum(ci_l, "net_kg"),
+            _sum(pl_l, "net_kg"),
+            _sum(bl_l, "net_kg"),
+            _num(row.val(C_NET)),
+            C_NET,
         ),
         item(
             f"금액({cur})" if cur else "금액",
             _sum(ci_l, "amount"),
-            None,
-            None,
+            _sum(pl_l, "amount"),
+            _sum(bl_l, "amount"),
             _num(row.val(C_PRICE)),
             C_PRICE,
         ),
@@ -216,7 +267,7 @@ def crosscheck_row(
     out.append(
         item(
             "총중량",
-            None,
+            ci.total_gross_kg if ci else None,
             pl.total_gross_kg if pl else None,
             bl.total_gross_kg if bl else None,
             None,
@@ -249,11 +300,22 @@ def crosscheck_row(
     if ci and pl and ci.doc_date and pl.doc_date:
         out.append(item("서류 날짜", ci.doc_date, pl.doc_date, None, None))
     if ci and ci.currency:
-        out.append(item("통화", ci.currency, (pl.currency or None) if pl else None, None, None))
+        out.append(
+            item(
+                "통화",
+                ci.currency,
+                (pl.currency or None) if pl else None,
+                (bl.currency or None) if bl else None,
+                row.val(C_CURRENCY),
+                C_CURRENCY,
+            )
+        )
     return out
 
 
 def _agreed(it: dict) -> object:
+    if it.get(UNIPASS):  # 기준 값(유니패스)이 있으면 그 값
+        return it[UNIPASS]
     return next((it[d] for d in DOC_COLS if it[d] not in (None, "")), None)
 
 
@@ -262,12 +324,24 @@ def apply_flags(row: HistoryRow, items: list[dict]) -> None:
     담당자 값(final_value)이 있는 칸·다른 경고가 있는 칸은 그대로. 다시 일치하면 서류 값으로 되돌린다."""
     for it in items:
         col = it.get("cell")
-        cell = row.cells.get(col) if col else None
-        if not cell:
+        if not col:
             continue
-        if it["different"] and cell.final_value is None and cell.flag in ("ok", "mismatch"):
-            if col not in KEY_CELLS:
-                cell.ai_value = None
+        cell = row.cells.setdefault(col, Field())
+        if cell.final_value is not None:
+            continue
+        if it["different"]:
+            cell.ai_value = None
+            if col == C_MODEL:
+                if not row.source_models:
+                    row.source_models = {d: str(it[d]) for d in DOC_COLS if it.get(d)}
+                row.model = ""
+                for dep in (C_NAME_KO, C_MATERIAL, C_SPEC, C_RECORD):
+                    if dep not in row.cells or row.cells[dep].final_value is None:
+                        row.set_ai(
+                            dep, None, flag="need_check", memo="모델 확정 후 등록 정보 재확인"
+                        )
+            if col == C_MAKER and row.val(C_RECORD) and row.cells[C_RECORD].final_value is None:
+                row.set_ai(C_RECORD, None, flag="need_check", memo="제조사 확정 후 실적 재확인")
             cell.flag = "mismatch"
             who = (it.get("ai") or {}).get("what") or ""
             vals = ", ".join(
@@ -280,12 +354,26 @@ def apply_flags(row: HistoryRow, items: list[dict]) -> None:
             if cell.ai_value in (None, "") and _agreed(it) is not None:
                 cell.ai_value = _agreed(it)
             cell.flag, cell.memo = "ok", ""
-    bl_level = [it["item"] for it in items if not it.get("cell") and it["different"]]
+            if col == C_MODEL:
+                row.model = str(cell.value or "")
+    bl_level = [
+        it["item"]
+        for it in items
+        if not it.get("cell") and it["different"] and it.get("status") != STATUS_DONE
+    ]
     empty = [it["item"] for it in items if it.get("status") == STATUS_EMPTY]
     parts = ([f"{', '.join(bl_level)} 서류끼리 다름"] if bl_level else []) + (
         [f"{', '.join(empty)} 비어 있음"] if empty else []
     )
     row.set_note("서류 대조", " · ".join(parts) if parts else None)
+    # 참고(막지 않음): 모선은 유니패스 값을 쓰고, 서류 모선과 다르면 비고에 알려만 준다(HS 결정 11/27)
+    refs = [
+        f"{it['item']}: 유니패스 값 사용, 서류 "
+        + ", ".join(f"{d} {it[d]}" for d in DOC_COLS if it.get(d) not in (None, ""))
+        for it in items
+        if it.get("status") == STATUS_REF
+    ]
+    row.set_note("참고", " · ".join(refs) if refs else None)
 
 
 def arrival_check(row: HistoryRow, bl: ParsedDocument | None, arrival_packages: str) -> None:

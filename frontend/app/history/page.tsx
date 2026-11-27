@@ -215,7 +215,7 @@ export default function HistoryPage() {
             top: 0,
             right: 0,
             bottom: 0,
-            width: "min(560px, 92vw)",
+            width: "min(920px, 94vw)",
             background: colors.bg,
             boxShadow: "-12px 0 32px rgba(15, 23, 42, 0.18)",
             zIndex: 20,
@@ -228,7 +228,7 @@ export default function HistoryPage() {
               ✕ {T.close}
             </Button>
           </div>
-          <ReviewPanel rowId={active} onConfirmed={() => reload()} onClose={() => setActive(null)} />
+          <ReviewPanel key={active} rowId={active} onConfirmed={() => reload()} onClose={() => setActive(null)} />
         </aside>
       )}
 

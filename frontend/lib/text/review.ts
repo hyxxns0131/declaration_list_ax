@@ -26,7 +26,9 @@ export const REVIEW = {
   aiOff: "AI 분석 꺼짐 (코드 대조만)",
   aiLine: (what: string, doc: string, val: string, conf: number) =>
     `${what}${doc ? ` · 오타로 보이는 서류: ${doc}` : ""}${val ? ` · 추천 값 ${val}` : ""} (확신 ${Math.round(conf * 100)}%)`,
-  status: { 일치: "일치", 불일치: "불일치", 해결됨: "해결됨", "비어 있음": "비어 있음" },
+  status: { 일치: "일치", 불일치: "불일치", 해결됨: "해결됨", "비어 있음": "비어 있음", 참고: "참고" },
+  refLine: "참고 · 유니패스 값을 씁니다(서류 모선과 다름 — 환적 등)",
+  refTip: "모선명은 유니패스 기준으로 입력합니다. 서류와 달라도 막지 않고 알려만 드립니다(HS 결정 11/27)",
   emptyValue: "비어 있음",
   emptyTip: "서류에 대조할 값(TOTAL 또는 줄 금액)이 없습니다. 막지 않고 알려 드리기만 합니다",
   listValue: "완성된 리스트 값",

@@ -104,6 +104,18 @@ def test_bl_typo_ai_points_document(client, monkeypatch):  # noqa: F811
     assert ms and all(m["status"] == "불일치" for m in ms)
     assert ms[0]["ai"]["typo_doc"] == "PL" and ms[0]["ai"]["suggested"] == "BLTEST006"
     assert ms[0]["code_different"] is True
+    rid = ms[0]["row_id"]
+    cell = client.get(f"/api/history/{rid}").json()["cells"]["B/L Number"]
+    assert cell["ai_value"] is None and cell["final_value"] is None
+    pick = {"choices": [{"item": "B/L 번호", "source": "manual", "value": "CHECKED"}]}
+    assert client.patch(f"/api/history/{rid}/resolve", json=pick).status_code == 200
+    again = _up(client, "BL-TEST-006")
+    assert rid in again["updated"] and not again["created"]
+    assert client.post("/api/history/crosscheck", params={"shipper_id": "A"}).status_code == 200
+    review = client.get(f"/api/history/{rid}/review").json()
+    assert review["row"]["cells"]["B/L Number"]["final_value"] == "CHECKED"
+    bl = next(it for it in review["items"] if it["item"] == "B/L 번호")
+    assert bl["PL"] != bl["BL"] and bl["status"] == "해결됨"
 
 
 def test_ai_off_code_only(client):  # noqa: F811
@@ -114,8 +126,14 @@ def test_ai_off_code_only(client):  # noqa: F811
 
 
 def test_fill_from_registry(client):  # noqa: F811
-    _register(client, "A")
     _up(client, "BL-TEST-003")
+    _register(client, "A")
+    registered = _row(client, "BLTEST003", "RC-100")["cells"]
+    assert registered["실적접수번호 (승인일)"]["ai_value"] == "202300000101 (2023.04.25)"
+    assert (
+        registered["제조사"]["ai_value"]
+        and registered["재질 (재질 코드명으로 작성, 가나다 순으로 기재)"]["ai_value"]
+    )
     out = client.post("/api/history/fill", params={"shipper_id": "A"}).json()
     assert out["judged"] >= 1
     cell = _row(client, "BLTEST003", "RC-100")["cells"]["실적접수번호 (승인일)"]

@@ -52,9 +52,7 @@ def documents_by_ids(doc_ids: list[str]) -> list[ParsedDocument]:
 
 # ── 검역이력 행 ────────────────────────────────────────
 def _bl(row: HistoryRow) -> str:
-    cell = row.cells.get("B/L Number")
-    v = cell.value if cell else None
-    return str(v or "")
+    return row.shipment_key
 
 
 def save_rows(rows: list[HistoryRow]) -> None:

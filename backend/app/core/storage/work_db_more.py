@@ -36,7 +36,7 @@ def documents_for_bl(shipper_id: str, bl_no: str) -> list[ParsedDocument]:
     """같은 B/L로 올라온 서류 전부(재업로드 포함, 오래된 것 → 최근)."""
     with transaction() as conn:
         rs = conn.execute(
-            "select parsed from documents where shipper_id = ? and bl_no = ? order by created_at",
+            "select parsed from documents where shipper_id = ? and bl_no = ? order by created_at, rowid",
             (shipper_id, bl_no),
         ).fetchall()
     return [ParsedDocument.model_validate_json(r["parsed"]) for r in rs]
@@ -65,16 +65,7 @@ def list_documents(shipper_id: str) -> list[tuple[ParsedDocument, str, str, str]
 def set_folder_bl(folder_id: str, bl_no: str) -> None:
     """폴더 단위로 B/L 번호를 맞춘다(B/L 번호는 폴더 안 서류 한 곳에만 있을 수 있다)."""
     with transaction() as conn:
-        rs = conn.execute(
-            "select doc_id, parsed from documents where folder_id = ?", (folder_id,)
-        ).fetchall()
-        for r in rs:
-            doc = ParsedDocument.model_validate_json(r["parsed"])
-            doc.bl_no = doc.bl_no or bl_no
-            conn.execute(
-                "update documents set bl_no = ?, parsed = ? where doc_id = ?",
-                (bl_no, doc.model_dump_json(), r["doc_id"]),
-            )
+        conn.execute("update documents set bl_no = ? where folder_id = ?", (bl_no, folder_id))
 
 
 # ── 서류 대조 결과 ─────────────────────────────────────
