@@ -73,3 +73,43 @@ def on_registry_changed(
         return {"judged": 0, "need_registry": 0, "rows": []}
     out = fill(shipper_id, hit)
     return {**out, "rows": hit}
+
+
+# ── 등록 정보가 바뀌었으면 자동으로 다시 채우기 (HS 요청 11/27: 버튼 안 눌러도) ─────────────────
+# YHS(a2)가 저장할 때 on_registry_changed를 부르기 전까지, ③을 열 때 등록 정보 지문을 비교해 바뀌었으면 fill()을 돈다.
+def registry_fingerprint(shipper_id: str) -> str:
+    import hashlib
+    import json
+
+    prods = sorted(
+        json.dumps(p, ensure_ascii=False, sort_keys=True, default=str)
+        for p in products_for(shipper_id)
+    )
+    recs = sorted(
+        json.dumps(
+            r.model_dump() if hasattr(r, "model_dump") else str(r),
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        for r in list_records(shipper_id)
+    )
+    return hashlib.sha256("\n".join(prods + recs).encode("utf-8")).hexdigest()[:16]
+
+
+def fill_if_changed(shipper_id: str) -> dict:
+    """등록 정보 지문이 지난번과 다르면 fill(). 지문은 DATA_DIR/registry_fp.json(PC 안)."""
+    import json
+
+    from app.core.config import get_settings
+
+    path = get_settings().data_path / "registry_fp.json"
+    seen = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    fp = registry_fingerprint(shipper_id)
+    if seen.get(shipper_id) == fp:
+        return {"changed": False}
+    out = fill(shipper_id)
+    seen[shipper_id] = fp
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(seen), encoding="utf-8")
+    return {"changed": True, **out}

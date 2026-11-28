@@ -38,8 +38,9 @@ def test_one_workbook_gives_ci_and_pl(tmp_path):
     ci_alone = extract_documents(SAMPLE / "CI.xlsx", "CI.xlsx", "A", "f")[0]
     assert len(by["PL"].lines) == len(pl_alone.lines) > 0
     n = len(ci_alone.lines)
-    assert len(by["CI"].lines) == 2 * n  # 부분품 시트 줄이 CI에 합쳐짐
-    assert all(ln.is_part for ln in by["CI"].lines[n:])  # 부분품 시트 줄은 부분품으로 표시
+    # 부분품 시트가 본품 줄을 그대로 다시 적었으면 두 번 넣지 않는다(HS 11/27 CI 합계 2배 문제)
+    assert len(by["CI"].lines) == n
+    assert [ln.is_part for ln in by["CI"].lines] == [ln.is_part for ln in ci_alone.lines]
 
 
 def test_single_sheet_falls_back(tmp_path):

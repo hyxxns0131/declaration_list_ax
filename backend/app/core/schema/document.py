@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from pydantic import Field as PField
 
 DocType = Literal[
-    "CI", "PL", "BL", "CO", "INTAKE_LIST", "IMPORT_DECL", "TEST_REPORT", "PHOTO", "LABEL"
+    "CI", "PL", "BL", "CO", "INTAKE_LIST", "IMPORT_DECL", "TEST_REPORT", "PHOTO", "LABEL", "OTHER"
 ]
 
 

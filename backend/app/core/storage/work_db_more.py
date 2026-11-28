@@ -278,3 +278,41 @@ def save_factory(row: dict) -> None:
             f" values ({', '.join('?' * len(FACTORY_COLUMNS))}, datetime('now'))",
             vals,
         )
+
+
+# ── 폴더(선적 건) 단위 (화면 ① 정리, HS 요청 11/27) ──────────────────
+def documents_for_folder(folder_id: str) -> list[tuple[ParsedDocument, str, str, str]]:
+    """폴더의 서류 전부 (판독 결과, 파일 이름, 파일 경로, 폴더 B/L) — 오래된 것 → 최근."""
+    with transaction() as conn:
+        rs = conn.execute(
+            "select parsed, filename, file_path, bl_no from documents where folder_id = ?"
+            " order by created_at, rowid",
+            (folder_id,),
+        ).fetchall()
+    return [
+        (
+            ParsedDocument.model_validate_json(r["parsed"]),
+            r["filename"],
+            r["file_path"],
+            r["bl_no"] or "",
+        )
+        for r in rs
+    ]
+
+
+def document_rows_raw(doc_ids: list[str]) -> list[dict]:
+    """백업용: documents 표 행 그대로."""
+    if not doc_ids:
+        return []
+    marks = ",".join("?" * len(doc_ids))
+    with transaction() as conn:
+        rs = conn.execute(f"select * from documents where doc_id in ({marks})", doc_ids).fetchall()
+    return [dict(r) for r in rs]
+
+
+def delete_documents(doc_ids: list[str]) -> None:
+    if not doc_ids:
+        return
+    marks = ",".join("?" * len(doc_ids))
+    with transaction() as conn:
+        conn.execute(f"delete from documents where doc_id in ({marks})", doc_ids)

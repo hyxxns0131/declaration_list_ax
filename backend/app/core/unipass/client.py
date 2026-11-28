@@ -198,7 +198,8 @@ def get_cargo(bl_no: str, use_cache: bool = True) -> CargoInfo | None:
             got = _live_cargo(bl_no)
         except UnipassError:
             got = None
-    if got is None:
+    if got is None and get_settings().unipass_mode == "mock":
+        # 가상 화물 정보(samples)는 mock 모드(시험·테스트)에서만. live에서 못 찾으면 '못 찾음'(HS 지시 11/27)
         data = mock.cargo(bl_no)
         got = CargoInfo.model_validate({**data, "source": "mock"}) if data else None
     if got:

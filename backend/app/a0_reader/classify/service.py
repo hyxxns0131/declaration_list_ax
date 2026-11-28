@@ -16,7 +16,10 @@ NAME_TOKENS: list[tuple[DocType, tuple[str, ...]]] = [
         ("수입신고필증", "신고필증", "수입신고서", "importdeclaration", "importpermit"),
     ),
     ("INTAKE_LIST", ("입고", "intake")),
-    ("CO", ("co", "origin", "원산지", "certificateoforigin")),
+    (
+        "CO",
+        ("co", "origin", "원산지", "certificateoforigin", "fta"),
+    ),  # FTA 원산지증명서(초안) 포함(HS 11/27)
     ("BL", ("bl", "billoflading", "선하증권")),
     ("PL", ("pl", "packing", "packinglist", "패킹", "포장명세서")),
     ("CI", ("ci", "invoice", "commercialinvoice", "인보이스")),
@@ -87,7 +90,9 @@ def classify_shipping_name(filename: str) -> DocType | None:
     return got if got in SHIPPING_TYPES else None
 
 
-def classify_with_ai(filename: str, head_text: str, mask_names: list[str]) -> DocType | None:
+def classify_with_ai(
+    filename: str, head_text: str, mask_names: list[str], images: list[bytes] | None = None
+) -> DocType | None:
     """파일 이름 → 본문 키워드로도 모를 때만. 끝까지 모르면 None(호출한 쪽이 '서류 종류 확인 필요')."""
     from typing import Literal
 
@@ -104,9 +109,10 @@ def classify_with_ai(filename: str, head_text: str, mask_names: list[str]) -> Do
     out = call_structured(
         "a0_reader/classify_doc",
         2,
-        {"filename": filename, "head_text": head_text[:1500]},
+        {"filename": filename, "head_text": head_text[:1500], "has_images": bool(images)},
         _Out,
         mask_names=mask_names,
+        images=images,  # 글자 없는 스캔본: 화주명을 가린 첫 쪽 PNG(HS 결정 11/26)
     )
     if out is None or out.doc_type == "UNKNOWN":
         return None

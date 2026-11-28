@@ -15,7 +15,7 @@ import { confirmRow, getReview, resolveRow } from "@/lib/api/history";
 import { openDocument } from "@/lib/api/reader";
 import { fmtCell, fmtNumber } from "@/lib/format";
 import { DOC_LABELS } from "@/lib/text/reader";
-import { REVIEW } from "@/lib/text/review";
+import { REVIEW, friendlyItem } from "@/lib/text/review";
 import type { CellValue, DocKey, PickKey, ResolveChoice, Review, ReviewItem } from "@/lib/types/history";
 
 const DOCS: DocKey[] = ["CI", "PL", "BL"];
@@ -36,6 +36,34 @@ function outlier(it: ReviewItem, doc: PickKey, cols: PickKey[]): boolean {
   const same = vals.filter((v) => String(v) === String(mine)).length;
   return same <= vals.length / 2; // 다수와 다른 값만 빨강(둘뿐이면 둘 다)
 }
+
+/** 선적 건 전체에 하나인 값(백엔드 review.SHIPMENT_ITEMS와 같게) */
+const SHIPMENT_ITEMS = ["통화", "모선", "B/L 번호", "인보이스 번호", "서류 날짜"];
+
+type ItemState = "일치" | "다름" | "값 없음" | "해결됨" | "참고";
+
+/** 항목 상태를 글자로(HS 11/27): 아직 고를 것 = 다름 */
+function itemState(it: ReviewItem): ItemState {
+  const st = it.status ?? (it.different ? "불일치" : "일치");
+  if (st === "해결됨") return "해결됨";
+  if (st === "참고") return "참고";
+  if (st === "비어 있음") return "값 없음";
+  if (it.different || st === "불일치") return "다름";
+  const vals = [it.CI, it.PL, it.BL].filter((v) => v !== null && v !== undefined && v !== "");
+  return vals.length === 0 ? "값 없음" : "일치";
+}
+
+function needsPick(it: ReviewItem): boolean {
+  return itemState(it) === "다름";
+}
+
+const STATE_COLOR: Record<ItemState, string> = {
+  일치: colors.ok,
+  다름: colors.mismatch,
+  "값 없음": colors.muted,
+  해결됨: colors.edited,
+  참고: colors.muted,
+};
 
 const numCell = { textAlign: "right" as const, fontVariantNumeric: "tabular-nums" as const };
 
@@ -125,7 +153,7 @@ export function ReviewPanel({
         <strong style={{ fontSize: font.lg }}>{REVIEW.title(bl, name)}</strong>
         {data && (
           <span style={{ borderRadius: 999, padding: "2px 10px", fontSize: font.sm, fontWeight: 700, background: STATE_STYLE.mismatch.bg, color: STATE_STYLE.mismatch.color }}>
-            {REVIEW.mismatch(data.items.filter((i) => i.status === "불일치" || (!i.status && i.different)).length)}
+            {REVIEW.mismatch(data.items.filter((i) => needsPick(i)).length)}
           </span>
         )}
         {data && (
@@ -134,11 +162,25 @@ export function ReviewPanel({
           </span>
         )}
         <span style={{ marginLeft: "auto", display: "flex", gap: space.xs, flexWrap: "wrap" }}>
-          {data?.documents.map((d) => (
-            <Button key={d.doc_id} small onClick={() => openDocument(d.doc_id).catch(setError)}>
-              {REVIEW.openDoc}: {DOC_LABELS[d.doc_type] ?? d.doc_type}
-            </Button>
-          ))}
+          {data && data.documents.length > 0 && (
+            <details style={{ position: "relative" }}>
+              <summary style={{ listStyle: "none", cursor: "pointer", border: `1px solid ${colors.border}`, borderRadius: 8, padding: "3px 10px", fontSize: font.sm, background: "#fff" }}>
+                {REVIEW.openDocMenu} ▾
+              </summary>
+              <div style={{ position: "absolute", right: 0, top: "110%", zIndex: 5, background: "#fff", border: `1px solid ${colors.border}`, borderRadius: 8, padding: 4, minWidth: 200, boxShadow: "0 4px 12px rgba(0,0,0,.08)" }}>
+                {data.documents.map((d) => (
+                  <button
+                    key={d.doc_id}
+                    type="button"
+                    onClick={() => openDocument(d.doc_id).catch(setError)}
+                    style={{ display: "block", width: "100%", textAlign: "left", border: "none", background: "none", padding: "6px 8px", fontSize: font.sm, cursor: "pointer" }}
+                  >
+                    {DOC_LABELS[d.doc_type] ?? d.doc_type}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
           <Button small variant={data?.confirmed ? "default" : "primary"} disabled={!data || busy} onClick={toggle}>
             {data?.confirmed ? REVIEW.unconfirm : REVIEW.confirm}
           </Button>
@@ -159,6 +201,7 @@ export function ReviewPanel({
             <thead>
               <tr>
                 <th>{REVIEW.cols.item}</th>
+                <th>{REVIEW.cols.state}</th>
                 {cols.map((d) => (
                   <th key={d}>{REVIEW.cols[d]}</th>
                 ))}
@@ -166,7 +209,7 @@ export function ReviewPanel({
               </tr>
             </thead>
             <tbody>
-              {data.items.map((it) => {
+              {[...data.items.filter(needsPick), ...data.items.filter((i) => !needsPick(i) && itemState(i) !== "일치")].map((it) => {
                 const p = picks[it.item];
                 const st = it.status ?? (it.different ? "불일치" : "일치");
                 const can = it.different && !data.row.status.includes("승인");
@@ -175,11 +218,23 @@ export function ReviewPanel({
                 return (
                   <tr key={it.item} style={{ verticalAlign: "top" }}>
                     <td style={{ minWidth: 130 }}>
-                      <div style={{ fontWeight: 600 }}>{it.item}</div>
+                      <div style={{ fontWeight: 600 }}>{friendlyItem(it.item, it.CI, it.sheet)}</div>
                       {it.different && (
                         <span style={{ fontSize: 12, fontWeight: 700, color: st === "해결됨" ? STATE_STYLE.manual.color : colors.mismatch }}>
                           {st === "해결됨" ? "✎ 해결됨" : "■ 불일치"}
                         </span>
+                      )}
+                      {st === "해결됨" && it.chosen && (
+                        <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                          {REVIEW.chosenLine(show(it.chosen.value), it.chosen.note, it.chosen.memo)}{" "}
+                          <button
+                            type="button"
+                            onClick={() => setPick(it.item, { source: "manual", value: "", memo: it.chosen?.memo ?? "" })}
+                            style={{ border: "none", background: "none", color: LIST_BLUE, cursor: "pointer", fontSize: 12, padding: 0 }}
+                          >
+                            {REVIEW.repick}
+                          </button>
+                        </div>
                       )}
                       {st === "비어 있음" && (
                         <span style={{ fontSize: 12, fontWeight: 700, color: colors.muted }} title={REVIEW.emptyTip}>
@@ -198,6 +253,15 @@ export function ReviewPanel({
                         </div>
                       )}
                       {it.different && it.ai === null && <div style={{ fontSize: 12, color: colors.muted }}>{REVIEW.aiOff}</div>}
+                      {(!it.cell || SHIPMENT_ITEMS.includes(it.item)) && it.different && st !== "해결됨" && (
+                        <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>{REVIEW.shipmentItem}</div>
+                      )}
+                      {it.list_diff && st !== "해결됨" && (
+                        <div style={{ fontSize: 12, color: colors.mismatch, marginTop: 2 }}>{REVIEW.listDiffLine}</div>
+                      )}
+                    </td>
+                    <td style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", color: STATE_COLOR[itemState(it)] }}>
+                      {REVIEW.stateText[itemState(it)]}
                     </td>
                     {cols.map((d) => {
                       const v = it[d] ?? null;
@@ -283,6 +347,34 @@ export function ReviewPanel({
               })}
             </tbody>
           </table>
+          {data.items.some((i) => itemState(i) === "일치") && (
+            <details style={{ marginTop: space.sm }}>
+              <summary style={{ cursor: "pointer", fontSize: font.sm, color: colors.ok, fontWeight: 700 }}>
+                ✓ {REVIEW.sameItems(data.items.filter((i) => itemState(i) === "일치").length)}
+              </summary>
+              <table style={{ marginTop: space.xs, width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <tbody>
+                  {data.items
+                    .filter((i) => itemState(i) === "일치")
+                    .map((it) => {
+                      const listCell = it.cell ? data.row.cells[it.cell] : undefined;
+                      return (
+                        <tr key={it.item}>
+                          <td style={{ minWidth: 130 }}>{friendlyItem(it.item, it.CI, it.sheet)}</td>
+                          <td style={{ color: colors.ok, fontWeight: 700, fontSize: 12 }}>{REVIEW.stateText.일치}</td>
+                          {cols.map((d) => (
+                            <td key={d} style={{ ...numCell, textAlign: typeof it[d] === "number" ? "right" : "left" }}>
+                              {show(it[d] ?? null) || <span style={{ color: colors.approved }}>—</span>}
+                            </td>
+                          ))}
+                          <td>{it.cell ? fmtCell(it.cell, listCell?.final_value ?? listCell?.ai_value ?? null) || "—" : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </details>
+          )}
         </div>
       )}
 

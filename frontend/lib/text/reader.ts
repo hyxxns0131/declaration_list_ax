@@ -26,6 +26,7 @@ export const READER = {
   failed: "실패",
   summary: (ships: number, missing: number) => `선적 ${ships}건 추출 완료 · 자료 추가 필요 ${missing}`,
   goReview: "대조 결과 보기",
+  addToShipment: "이 선적 건에 서류 더 올리기(같은 건으로 묶입니다)",
 } as const;
 
 export const DOC_LABELS: Record<string, string> = {
@@ -38,4 +39,78 @@ export const DOC_LABELS: Record<string, string> = {
   TEST_REPORT: "시험성적서",
   PHOTO: "현품사진",
   LABEL: "한글표시",
+  OTHER: "기타 서류",
 };
+
+/** 화면 ① 선적 건 카드 문구 (HS 요청 11/27: '?' 대신 말로, 초보자도 쉽게) */
+export const CARDS = {
+  short: { CI: "CI", PL: "PL", BL: "B/L", CO: "CO" } as Record<string, string>,
+  // 칩: 약어 + 쉬운 이름 + 상태 글자 (색만으로 구분하지 않는다)
+  state: {
+    ok: "✓ 있음",
+    missing: "없음 — 올려 주세요",
+    unreadable: "⚠ 값을 못 읽음",
+    unknown: "⚠ 어떤 서류인지 모름",
+    check: "△ 일부 확인 필요",
+  } as Record<string, string>,
+  stateHelp: {
+    ok: "서류를 읽었습니다.",
+    missing: "이 서류가 아직 없습니다. [이 건에 서류 더 올리기]로 올려 주세요.",
+    unreadable: "파일은 받았지만 표의 값을 읽지 못했습니다. AI 판독이 꺼져 있거나 양식이 달라서일 수 있어요. 다른 파일로 다시 올리거나 ③ 표에서 값을 직접 넣어 주세요.",
+    unknown: "어떤 서류인지 알아보지 못했습니다. 파일 이름에 CI·PL·BL 같은 글자를 넣어 다시 올리면 알아봅니다.",
+    check: "읽었지만 몇 칸(예: B/L 번호)은 찾지 못했습니다.",
+  } as Record<string, string>,
+  noBl: "B/L 번호를 못 찾음",
+  noBlHelp: "서류에서 B/L 번호를 읽지 못해 이 건을 묶을 수 없습니다. 번호를 직접 넣어 주세요.",
+  blPlaceholder: "B/L 번호 (예: ABCD1234567)",
+  saveBl: "B/L 번호 저장",
+  savingBl: "저장 중…",
+  blSaved: (bl: string) => `B/L ${bl}로 묶었습니다`,
+  files: "받은 파일",
+  others: "기타 서류",
+  rows: (n: number) => `검역 리스트 ${n}행`,
+  next: {
+    enter_bl: "B/L 번호 입력하기",
+    upload_missing: "이 건에 서류 더 올리기",
+    fix_docs: "이 건에 서류 더 올리기",
+    review: "대조 결과 보기",
+    done: "완성된 리스트 보기",
+  } as Record<string, string>,
+  nextLine: {
+    enter_bl: "할 일: B/L 번호를 넣어 주세요",
+    upload_missing: "할 일: 빠진 서류를 올려 주세요",
+    fix_docs: "할 일: 못 읽은 서류를 다시 올리거나 값을 직접 넣어 주세요",
+    review: "할 일: 서류끼리 다른 값을 확인해 주세요",
+    done: "끝났어요 — 완성된 리스트에 들어갔습니다",
+  } as Record<string, string>,
+  addMore: "이 건에 서류 더 올리기",
+  // 품목(모델) 표 (HS 요청 11/27 "품목(모델)을 추출해 달라")
+  items: "서류별 품목(모델)",
+  itemsHelp: "서류마다 적힌 품목이에요. 값이 다르면 ② 서류 대조·검수에서 맞는 값을 골라 주세요.",
+  model: "모델",
+  part: "부분품",
+  metrics: { pcs: "수량(PCS)", cartons: "카톤", net_kg: "순중량(kg)", amount: "금액" } as Record<string, string>,
+  notInDoc: "이 서류엔 없음",
+  noDoc: "서류 없음",
+  differs: "다름",
+  noModel: (desc: string) => `모델을 읽지 못함 — 원문 품명: ${desc || "(없음)"}`,
+  noItems: "읽은 품목이 없어요. 서류의 표를 읽지 못했을 수 있어요(위 안내 참고).",
+  openRow: "② 이 품목 보기",
+  headValues: "서류 머리 정보",
+  details: "서류별 읽은 값 보기",
+  hideDetails: "접기",
+  reread: "이 건 다시 읽기",
+  rereading: "다시 읽는 중… (AI 판독이면 1~2분)",
+  rereadHelp: "올려 둔 파일을 최신 판독 규칙으로 다시 읽습니다(예전에 잘못 읽었을 때)",
+  rereadDone: (n: number, bl: string) => `서류 ${n}개를 다시 읽었습니다${bl ? ` · B/L ${bl}` : ""}`,
+  del: "이 건 삭제",
+  delAsk: (rows: number) =>
+    `이 선적 건의 서류${rows ? `와 검역 리스트 ${rows}행` : ""}을 지울까요? 지우기 전에 이 PC에 백업해 둡니다(올린 원본 파일은 그대로).`,
+  delYes: "네, 지울게요",
+  delNo: "아니요",
+  delDone: (docs: number, rows: number) => `서류 ${docs}개${rows ? `·행 ${rows}개` : ""}를 지웠습니다(백업해 둠)`,
+  locked: "승인된 행이 있어 지울 수 없습니다",
+  todo: (n: number, first: string) => (n ? `지금 할 일 ${n}건 — 맨 위 "${first}"부터 해 주세요` : "지금 할 일이 없어요. 새 서류가 오면 [서류 올리기]를 눌러 주세요"),
+  groupTodo: (n: number) => `할 일 있는 건 ${n}`,
+  groupDone: (n: number) => `끝난 건 ${n}`,
+} as const;

@@ -34,6 +34,7 @@ from app.core.schema.document import ParsedDocument
 from app.core.schema.fields import Evidence, Field
 from app.core.schema.history import (
     C_APPROVAL,
+    C_BL,
     C_CURRENCY,
     C_MAKER,
     C_MATERIAL,
@@ -59,7 +60,7 @@ def _latest_by_type(docs: list[ParsedDocument]) -> list[ParsedDocument]:
     latest: dict[str, ParsedDocument] = {}
     extra: list[ParsedDocument] = []
     for d in docs:
-        if d.doc_type in ("PHOTO", "LABEL"):
+        if d.doc_type in ("PHOTO", "LABEL", "OTHER"):
             extra.append(d)
         else:
             latest[d.doc_type] = d
@@ -90,12 +91,26 @@ def _bl_label(rows: list[HistoryRow], bl: str) -> str:
     return f"{bl} {models[0]} 외" if models else bl
 
 
-def process_upload(shipper_id: str, files: list[tuple[str, bytes]]) -> dict:
-    """폴더 1개 = 선적서류 1건(RULES 11-1). 응답: 만든·고친 row_id, 서류별 판독 결과."""
+def process_upload(
+    shipper_id: str, files: list[tuple[str, bytes]], folder_id: str | None = None
+) -> dict:
+    """폴더 1개 = 선적서류 1건(RULES 11-1). 응답: 만든·고친 row_id, 서류별 판독 결과.
+    folder_id를 주면 그 선적 건(폴더)에 서류를 더 올린다(화면 ① [이 건에 서류 더 올리기], HS 요청 11/27)."""
     if not files:
         raise AppError("invalid_input", "파일을 골라 주세요.")
     settings = get_rules(shipper_id)
-    folder_id = uuid.uuid4().hex[:12]
+    before: list[ParsedDocument] = []
+    folder_bl = ""
+    if folder_id:
+        got = work_db_more.documents_for_folder(folder_id)
+        if not got or any(d.shipper_id != shipper_id for d, *_ in got):
+            raise AppError(
+                "not_found", "그 선적 건을 찾지 못했습니다. 새로고침 후 다시 해 주세요.", 404
+            )
+        before = [d for d, *_ in got]
+        folder_bl = got[0][3]
+    else:
+        folder_id = uuid.uuid4().hex[:12]
     base = get_settings().data_path
     folder = base / "uploads" / shipper_id / folder_id
     folder.mkdir(parents=True, exist_ok=True)
@@ -115,18 +130,26 @@ def process_upload(shipper_id: str, files: list[tuple[str, bytes]]) -> dict:
             paths[doc.doc_id] = path
 
     warnings: list[str] = []
-    bls = {d.bl_no for d in docs if d.bl_no}
+    folder_docs = before + docs  # 같은 폴더 = 같은 선적 건
+    bls = {d.bl_no for d in folder_docs if d.bl_no}
     if len(bls) > 1:
         warnings.append(W_MULTI_BL)
-    bl_no = find_bl(docs)
+    bl_no = folder_bl or find_bl(folder_docs)
     if bl_no:
         work_db_more.set_folder_bl(folder_id, bl_no)
     else:
         warnings.append("B/L 번호를 찾지 못함 — [확인 필요]")
 
-    all_docs = _latest_by_type(work_db_more.documents_for_bl(shipper_id, bl_no)) if bl_no else docs
-    existing = work_db.rows_by_bl(shipper_id, bl_no) if bl_no else []
+    if bl_no:
+        all_docs = _with_bl(
+            _latest_by_type(work_db_more.documents_for_bl(shipper_id, bl_no)), bl_no
+        )
+    else:
+        all_docs = _latest_by_type(folder_docs)
+    orphans = _folder_orphan_rows(shipper_id, [d.doc_id for d in before])
+    existing = (work_db.rows_by_bl(shipper_id, bl_no) if bl_no else []) + orphans
     created, updated = rebuild_bl(shipper_id, bl_no, all_docs, existing)
+    _drop_stale(orphans, set(created) | set(updated))
 
     drive_result = drive.status()
     if drive_result["ok"]:
@@ -165,6 +188,7 @@ def rebuild_bl(
     settings = get_rules(shipper_id)
     cargo = get_cargo(bl_no) if bl_no else None
     new_rows = build_rows(shipper_id, docs, settings, cargo)
+    existing = [r for r in existing if not r.manual]  # 직접 추가한 행은 서류 행과 짝짓지 않는다
     rows, created, updated = merge_with_existing(new_rows, existing)
     for r in rows:
         if r.row_id in updated:
@@ -239,7 +263,7 @@ def rebuild_all(shipper_id: str) -> dict:
         created, updated = rebuild_bl(shipper_id, bl, docs, existing)
         live = set(created) | set(updated)
         for old in existing:
-            if old.row_id in live or old.locked:
+            if old.row_id in live or old.locked or old.manual:
                 continue
             if any(c.final_value is not None for c in old.cells.values()):
                 old.set_note("설정 변경", "바뀐 설정으로는 서류에 없는 행입니다 — 확인 필요")
@@ -476,7 +500,8 @@ def list_history(
     return rows
 
 
-def delete_row(row_id: str) -> None:
+def delete_row(row_id: str) -> HistoryRow:
+    """행 삭제. 지운 행을 돌려준다(화면의 [되돌리기]가 그대로 다시 넣는다)."""
     row = work_db.get_row(row_id)
     if not row:
         raise AppError("not_found", "행이 없습니다.", 404)
@@ -485,6 +510,7 @@ def delete_row(row_id: str) -> None:
     work_db_more.delete_rows([row_id])
     recompute(row.shipper_id)
     local_db.audit("delete_row", row_id)
+    return row
 
 
 def move_row(row_id: str, before_row_id: str | None) -> None:
@@ -516,3 +542,208 @@ def archive_ready(shipper_id: str) -> dict:
             if res.get("ok"):
                 moved.append(bl)
     return {"ready": ready, "moved": moved, "drive": st, "today": date.today().isoformat()}
+
+
+# ── 화면 ① 선적 건 정리 (HS 요청 11/27: 초보자도 쉽게) ─────────────────────
+def _with_bl(docs: list[ParsedDocument], bl_no: str) -> list[ParsedDocument]:
+    """폴더 B/L(담당자가 입력했거나 B/L 서류에서 찾은 번호)을 번호 없는 서류에 채운다."""
+    return [d if d.bl_no else d.model_copy(update={"bl_no": bl_no}) for d in docs]
+
+
+def _folder_orphan_rows(shipper_id: str, doc_ids: list[str]) -> list[HistoryRow]:
+    """B/L 없이 만들어진 그 폴더의 행(번호를 넣거나 서류를 더 올리면 다시 만든다)."""
+    ids = set(doc_ids)
+    if not ids:
+        return []
+    return [
+        r
+        for r in work_db.list_rows(shipper_id)
+        if not r.shipment_key and ids & set(r.source_doc_ids)
+    ]
+
+
+def _drop_stale(old: list[HistoryRow], kept: set[str]) -> None:
+    """새로 만들면서 이어받지 못한 예전 행: 사람이 고친 값이 없으면 지우고, 있으면 남겨 두고 알린다."""
+    gone, keep = [], []
+    for r in old:
+        if r.row_id in kept:
+            continue
+        if r.locked or any(c.final_value is not None for c in r.cells.values()):
+            r.set_note("선적 건", "다시 만든 선적 건에 이어지지 않은 행 — 확인 필요")
+            keep.append(r)
+        else:
+            gone.append(r.row_id)
+    work_db_more.delete_rows(gone)
+    if keep:
+        work_db.save_rows(keep)
+
+
+def normalize_bl(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z]", "", text or "").upper()
+
+
+def assign_folder_bl(shipper_id: str, folder_ids: list[str], bl_no: str) -> dict:
+    """B/L 번호를 못 읽은 선적 건에 담당자가 번호를 넣는다 → 그 번호로 묶어 행을 다시 만든다.
+    final_value(담당자 값)는 이어받는다(merge_with_existing). 같은 번호의 다른 선적 건이 있으면 합쳐진다."""
+    bl = normalize_bl(bl_no)
+    if len(bl) < 4:
+        raise AppError("invalid_input", "B/L 번호를 4자 이상 넣어 주세요(영문·숫자).")
+    doc_ids: list[str] = []
+    for fid in folder_ids:
+        got = work_db_more.documents_for_folder(fid)
+        if not got or any(d.shipper_id != shipper_id for d, *_ in got):
+            raise AppError(
+                "not_found", "그 선적 건을 찾지 못했습니다. 새로고침 후 다시 해 주세요.", 404
+            )
+        doc_ids += [d.doc_id for d, *_ in got]
+        work_db_more.set_folder_bl(fid, bl)
+    docs = _with_bl(_latest_by_type(work_db_more.documents_for_bl(shipper_id, bl)), bl)
+    orphans = _folder_orphan_rows(shipper_id, doc_ids)
+    existing = work_db.rows_by_bl(shipper_id, bl) + orphans
+    created, updated = rebuild_bl(shipper_id, bl, docs, existing)
+    _drop_stale(orphans, set(created) | set(updated))
+    local_db.audit("set_folder_bl", shipper_id, f"bl={bl} folders={len(folder_ids)}")
+    return {"bl_no": bl, "created": created, "updated": updated}
+
+
+def delete_shipment(shipper_id: str, folder_ids: list[str]) -> dict:
+    """선적 건(폴더) 삭제. 지우기 전에 서류·행을 DATA_DIR/deleted/에 JSON으로 백업한다(되살릴 수 있게).
+    승인된 행이 있으면 지우지 않는다. 올린 원본 파일은 그대로 둔다."""
+    import json
+    import time
+
+    docs: list[ParsedDocument] = []
+    for fid in folder_ids:
+        got = work_db_more.documents_for_folder(fid)
+        if not got or any(d.shipper_id != shipper_id for d, *_ in got):
+            raise AppError(
+                "not_found", "그 선적 건을 찾지 못했습니다. 새로고침 후 다시 해 주세요.", 404
+            )
+        docs += [d for d, *_ in got]
+    doc_ids = {d.doc_id for d in docs}
+    rows = [r for r in work_db.list_rows(shipper_id) if doc_ids & set(r.source_doc_ids)]
+    if any(r.locked for r in rows):
+        raise AppError("locked", "승인된 행이 있는 선적 건은 지울 수 없습니다.", 409)
+    backup_dir = get_settings().data_path / "deleted"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    path = backup_dir / f"{stamp}_{shipper_id}_{folder_ids[0]}.json"
+    path.write_text(
+        json.dumps(
+            {
+                "shipper_id": shipper_id,
+                "folder_ids": folder_ids,
+                "documents": work_db_more.document_rows_raw(sorted(doc_ids)),
+                "rows": [r.model_dump(mode="json") for r in rows],
+                "mismatches": {r.row_id: work_db_more.get_mismatches(r.row_id) for r in rows},
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
+    work_db_more.delete_rows([r.row_id for r in rows])
+    work_db_more.delete_documents(sorted(doc_ids))
+    recompute(shipper_id)
+    local_db.audit("delete_shipment", shipper_id, f"folders={len(folder_ids)} rows={len(rows)}")
+    return {
+        "deleted_documents": len(doc_ids),
+        "deleted_rows": len(rows),
+        "kept_human_values": sum(
+            1 for r in rows for c in r.cells.values() if c.final_value is not None
+        ),
+        "backup": path.name,
+    }
+
+
+def reread_shipment(shipper_id: str, folder_ids: list[str]) -> dict:
+    """[이 건 다시 읽기]: 올려 둔 원본 파일을 지금 판독 규칙으로 다시 읽는다(예전 판독이 틀렸을 때, HS 요청 11/27).
+    같은 서류 번호(doc_id)를 이어 쓰고, 한 파일에서 서류가 더 나오면(CI·PL 시트) 새로 붙인다.
+    그 뒤 폴더 B/L(입력했거나 서류에서 찾은 번호)로 행을 다시 만든다. final_value는 이어받는다."""
+    base = get_settings().data_path
+    mask = all_names()
+    doc_ids: list[str] = []
+    bl_no = ""
+    fresh: list[ParsedDocument] = []
+    for fid in folder_ids:
+        got = work_db_more.documents_for_folder(fid)
+        if not got or any(d.shipper_id != shipper_id for d, *_ in got):
+            raise AppError(
+                "not_found", "그 선적 건을 찾지 못했습니다. 새로고침 후 다시 해 주세요.", 404
+            )
+        bl_no = bl_no or got[0][3]
+        seen: dict[str, list[str]] = {}
+        for d, filename, file_path, _bl in got:
+            doc_ids.append(d.doc_id)
+            seen.setdefault(file_path, []).append(d.doc_id)
+            seen[file_path].append(filename)
+        for file_path, info in seen.items():
+            ids, filename = [x for x in info[:-1] if x != info[-1]], info[-1]
+            path = base / file_path
+            if not path.exists():
+                continue
+            new_docs = extract_documents(path, filename, shipper_id, fid, mask)
+            for i, nd in enumerate(new_docs):
+                if i < len(ids):
+                    nd = nd.model_copy(update={"doc_id": ids[i]})  # 같은 서류 번호 이어 쓰기
+                work_db.save_document(nd, filename, file_path)
+                fresh.append(nd)
+            extra = ids[len(new_docs) :]
+            work_db_more.delete_documents(extra)
+    bl_no = bl_no or find_bl(fresh)
+    for fid in folder_ids:
+        if bl_no:
+            work_db_more.set_folder_bl(fid, bl_no)
+    if bl_no:
+        docs = _with_bl(_latest_by_type(work_db_more.documents_for_bl(shipper_id, bl_no)), bl_no)
+    else:
+        docs = _latest_by_type(fresh)
+    orphans = _folder_orphan_rows(shipper_id, doc_ids)
+    existing = (work_db.rows_by_bl(shipper_id, bl_no) if bl_no else []) + orphans
+    created, updated = rebuild_bl(shipper_id, bl_no, docs, existing)
+    _drop_stale(orphans, set(created) | set(updated))
+    local_db.audit("reread_shipment", shipper_id, f"bl={bl_no} folders={len(folder_ids)}")
+    return {"bl_no": bl_no, "documents": len(fresh), "created": created, "updated": updated}
+
+
+# ── ③ 행 직접 추가 (HS 요청 11/27: "읽어내지 못한 건 내가 직접 적어서 추가") ─────────────────
+def create_manual_row(shipper_id: str, bl_no: str, values: dict[str, object]) -> HistoryRow:
+    """서류에 없던 품목을 담당자가 추가. 넣은 칸은 모두 final_value + 근거 MANUAL, 행에는 '직접 추가' 표시."""
+    bl = normalize_bl(bl_no) if bl_no else ""
+    row = HistoryRow(
+        row_id=uuid.uuid4().hex[:12], shipper_id=shipper_id, manual=True, shipment_bl=bl
+    )
+    vals = {k: v for k, v in values.items() if v not in (None, "")}
+    if bl:
+        vals.setdefault(C_BL, bl)
+    for col, v in vals.items():
+        if col not in COLUMNS and col != COLOR_COLUMN:
+            raise AppError("invalid_input", f"모르는 열: {col}")
+        if col in COMPUTED:
+            continue
+        text = v.strip() if isinstance(v, str) else v
+        row.cells[col] = Field(
+            final_value=text,
+            evidence=[Evidence(source="MANUAL", ref="manual_row", note="MANUAL: 직접 추가한 행")],
+        )
+    name = str(vals.get(C_NAME_KO, ""))
+    m = re.search(r"\(([^)]+)\)\s*$", name)
+    row.model = (m.group(1) if m else str(vals.get("모델", ""))).strip()
+    row.set_note("직접 추가", "담당자가 직접 추가한 행")
+    if C_PRICE in vals or C_CURRENCY in vals:
+        fill_prices([row])
+    row.refresh_status()
+    work_db.save_rows([row])
+    recompute(shipper_id)
+    local_db.audit("manual_row", shipper_id, f"bl={bl}")
+    return row
+
+
+def restore_row(row: HistoryRow) -> HistoryRow:
+    """[되돌리기]: 지운 행을 그대로 다시 넣는다(지울 때 돌려준 행 JSON)."""
+    if work_db.get_row(row.row_id):
+        raise AppError("conflict", "이미 있는 행입니다.", 409)
+    work_db.save_rows([row])
+    recompute(row.shipper_id)
+    local_db.audit("restore_row", row.row_id)
+    return row

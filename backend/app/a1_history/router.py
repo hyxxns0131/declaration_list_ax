@@ -94,6 +94,36 @@ def mismatches(shipper_id: str, status: str | None = None) -> list[dict]:
     return review_service.list_mismatches(shipper_id, status)
 
 
+class ManualRowIn(BaseModel):
+    shipper_id: str
+    bl_no: str = ""
+    values: dict[str, Any] = {}
+
+
+@router.post("/rows")
+def manual_row(body: ManualRowIn) -> HistoryRow:
+    """③ [+ 행 직접 추가]: 서류에 없던 품목(넣은 칸은 final_value·근거 MANUAL, '직접 추가' 표시)."""
+    return service.create_manual_row(body.shipper_id, body.bl_no, body.values)
+
+
+@router.post("/rows/restore")
+def restore_row(row: HistoryRow) -> HistoryRow:
+    """지운 행 되돌리기(DELETE /history/{row_id} 응답의 row)."""
+    return service.restore_row(row)
+
+
+@router.get("/review-rows")
+def review_rows(shipper_id: str) -> dict:
+    """화면 ② 왼쪽 목록: 행·필터 숫자를 한 함수로(미해결·해결됨·전체 숫자 = 목록 개수)."""
+    return review_service.review_rows(shipper_id)
+
+
+@router.post("/fill-if-changed")
+def fill_if_changed(shipper_id: str) -> dict:
+    """③을 열 때: 2번 탭 등록 정보가 바뀌었으면 재질·제조사·실적을 자동으로 다시 채운다."""
+    return fill_service.fill_if_changed(shipper_id)
+
+
 @router.post("/fill")
 def fill(shipper_id: str) -> dict:
     return fill_service.fill(shipper_id)
@@ -143,8 +173,9 @@ def patch(row_id: str, body: PatchIn) -> HistoryRow:
 
 @router.delete("/{row_id}")
 def delete(row_id: str) -> dict:
-    service.delete_row(row_id)
-    return {"ok": True}
+    """행 삭제. 응답의 row를 POST /history/rows/restore로 보내면 되돌린다."""
+    row = service.delete_row(row_id)
+    return {"ok": True, "row": row.model_dump(mode="json")}
 
 
 @router.post("/{row_id}/move")

@@ -1,6 +1,8 @@
 "use client";
-// 탭 3. 검역 리스트 › ① 서류 올리기·추출 (DESIGN 3-1-1, 검역 리스트 탭 1단계). 선적 건 카드(받은 서류 칩·추출 상태,
-// 펼치면 서류별 추출값) + 드라이브 접수 폴더 가져오기(화주 설정 inbox). 올리기는 공통 머리 [서류 올리기]. 담당: KHS
+// 탭 3. 검역 리스트 › ① 서류 올리기·추출 (DESIGN 3-1-1·3-7, 검역 리스트 탭 1단계). 담당: KHS
+// HS 요청 11/27 "보기 편하게, 초보자도 쉽게": '지금 할 일' 한 줄(3단계 안내 상자는 HS 요청으로 뺌),
+// 선적 건 카드는 할 일 있는 건이 위·끝난 건이 아래, 카드마다 버튼 하나. 드라이브 접수 폴더 가져오기(화주 설정 inbox).
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { ShipmentCards } from "@/components/reader/ShipmentCards";
@@ -16,18 +18,22 @@ import { getShipper } from "@/lib/api/settings";
 import { useShipper } from "@/lib/hooks/useShipper";
 import { T } from "@/lib/text/common";
 import { HOME } from "@/lib/text/home";
+import { CARDS } from "@/lib/text/reader";
 import type { Shipment } from "@/lib/types/reader";
 
 const U = HOME.upload;
 
 export default function UploadPage() {
+  const router = useRouter();
   const { shipperId, shipperName, error: shipperError } = useShipper();
   const [ships, setShips] = useState<Shipment[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
+  const [folderId, setFolderId] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [inboxOn, setInboxOn] = useState(false);
   const [inboxMsg, setInboxMsg] = useState("");
+  const [note, setNote] = useState("");
 
   const load = useCallback(() => {
     if (!shipperId) return;
@@ -62,13 +68,17 @@ export default function UploadPage() {
     }
   };
 
-  const missing = ships?.filter((s) => s.missing.length).length ?? 0;
+  const openUpload = (fid?: string) => {
+    setFolderId(fid);
+    setOpen(true);
+  };
+  const todo = ships?.filter((s) => s.next !== "done") ?? [];
 
   return (
     <div>
       <ListHeader title={T.side.list.upload} onChanged={() => load()} />
-      <p style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{U.sub}</p>
       {(shipperError ?? error) !== null && <ErrorLine error={shipperError ?? error} onRetry={load} />}
+      {note && <Notice>{note}</Notice>}
 
       {inboxOn && (
         <Card>
@@ -88,7 +98,7 @@ export default function UploadPage() {
           <EmptyState
             text={U.emptyShipments}
             action={
-              <button type="button" style={pillPrimary} onClick={() => setOpen(true)} disabled={!shipperId}>
+              <button type="button" style={pillPrimary} onClick={() => openUpload()} disabled={!shipperId}>
                 ⇪ {HOME.buttons.upload}
               </button>
             }
@@ -97,10 +107,34 @@ export default function UploadPage() {
       )}
       {ships && ships.length > 0 && (
         <>
-          <div style={{ fontSize: font.md, margin: `${space.xs}px 0 ${space.sm}px` }}>
-            {U.shipmentCount(ships.length, missing)}
+          <div
+            role="status"
+            style={{
+              fontSize: font.md,
+              fontWeight: 700,
+              margin: `${space.xs}px 0`,
+              padding: `${space.sm}px ${space.md}px`,
+              borderRadius: 12,
+              background: todo.length ? colors.needCheckSoft : colors.okSoft,
+              color: todo.length ? colors.text : colors.ok,
+            }}
+          >
+            {CARDS.todo(todo.length, todo[0] ? CARDS.next[todo[0].next] : "")}
           </div>
-          <ShipmentCards shipments={ships} />
+          <ShipmentCards
+            shipments={ships}
+            shipperId={shipperId}
+            onChanged={(msg) => {
+              setNote(msg);
+              load();
+            }}
+            onAddMore={(fid) => openUpload(fid)}
+            onGo={(where, rowId) =>
+              router.push(
+                where === "review" ? `/history/review/${rowId ? `?row=${encodeURIComponent(rowId)}` : ""}` : "/history/",
+              )
+            }
+          />
         </>
       )}
 
@@ -108,6 +142,7 @@ export default function UploadPage() {
         <UploadDialog
           shipperId={shipperId}
           shipperName={shipperName}
+          folderId={folderId}
           onClose={() => setOpen(false)}
           onUploaded={() => load()}
         />
