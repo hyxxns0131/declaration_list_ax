@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from pydantic import Field as PField
 
 from app.a2_registry.records.service import expires_on, format_record_cell, is_expired, to_date
+from app.a3_judge.color.families import color_group
 from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.eligibility import covers_materials, covers_product, factory_match
 from app.a3_judge.spec_class.parse import same_spec as spec_equal
@@ -33,9 +34,11 @@ class RecordChoice(BaseModel):
 
 def color_words(text: str) -> set[str]:
     """색 표기 → 비교용 낱말. 'WHITE(흰색)' → {'WHITE', '흰색'}, 'white / 흰색' → {'WHITE', '흰색'}.
-    시험성적서는 '영문(한글)'로, 선적서류는 영문만 쓰는 경우가 있어 한쪽 낱말만 같아도 같은 색으로 본다."""
+    시험성적서는 '영문(한글)'·한글로, 선적서류는 영문만 쓰는 경우가 있어 한쪽 낱말만 같아도 같은 색으로 본다."""
     parts = re.split(r"[()（）/,·]", text or "")
-    return {p.strip().upper() for p in parts if p.strip()}
+    words = {p.strip().upper() for p in parts if p.strip()}
+    # 한글·영문 같은 색 짝(color/families.py): '노랑' → 'YELLOW' 묶음도 넣어 비교
+    return words | {g for w in words if (g := color_group(w))}
 
 
 def _color_ok(rec: Record, color: str) -> bool | None:
