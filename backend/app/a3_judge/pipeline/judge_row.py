@@ -11,6 +11,7 @@ from app.a3_judge.factory.choose import choose_factory
 from app.a3_judge.history_lookup.lookup import find_past
 from app.a3_judge.history_lookup.model_key import join_maker, norm_company, split_maker
 from app.a3_judge.material.codes import material_list
+from app.a3_judge.material.label_diff import TAG_LABEL, label_terms_from, label_warning
 from app.a3_judge.material.resolve import DEFAULT_ORDER, resolve_material
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
@@ -212,6 +213,17 @@ def _spec(row: HistoryRow, ctx: JudgeContext | None = None) -> None:
     row.set_note(TAG_SPEC, j.note or None)
 
 
+def _label_check(row: HistoryRow, ctx: JudgeContext) -> None:
+    """라벨 재질이 지금 재질 칸과 다르면 비고 한 줄(값은 안 바꿈, material/label_diff.py)."""
+    msg = label_warning(
+        material_list(row.text(C_MATERIAL)),
+        label_terms_from(ctx.docs_for(row)),
+        ctx.aliases,
+        ctx.known_materials,
+    )
+    row.set_note(TAG_LABEL, msg)
+
+
 def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext) -> None:
     raw = past.text(C_RECORD) if past else ""
     no, approved = parse_record_cell(raw)
@@ -352,6 +364,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     maker_detail = _maker(row, past, ctx, product)
     record_detail = _record(row, past, ctx, maker_detail.get("address", ""))
     _rule_check(row, ctx, maker_detail.get("address", ""))
+    _label_check(row, ctx)
     row.refresh_status()
     detail = {
         "material": {
