@@ -38,3 +38,12 @@ def test_judge_spec_keeps_typed_value_and_lists_missing():
     j = judge_spec(["도자기제"], "")
     assert j.ai_value is None and "입력 필요" in j.note
     assert judge_spec(["금속제"], "").families == []
+
+
+def test_glass_unclear_heat_mark_needs_check():
+    """'(가열조용)'처럼 글자가 빠진 표기는 자동으로 '가열조리용 이외'를 넣지 않는다. 가상 값."""
+    value, memo = auto_spec(["무착색유리제(가열조용)", "스테인레스"])
+    assert value is None and "확인 필요" in memo
+    assert auto_spec(["무착색유리제(가열조리용)"])[0] == "가열조리용"
+    assert auto_spec(["유리제(가열조리용 이외)"])[0] == "가열조리용 이외"
+    assert auto_spec(["유리제(가열조리용)", "유리제"])[0] is None  # 둘이 섞이면 담당자 확인

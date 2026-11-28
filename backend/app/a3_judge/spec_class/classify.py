@@ -16,6 +16,20 @@ from app.a3_judge.spec_class.tables import lookup
 __all__ = ["FAMILIES", "SpecJudgement", "auto_spec", "families_in", "judge_spec"]
 
 
+NOT_HEAT_MARKS = ("이외", "아님", "비가열")
+# 이 글자가 있는데 정확한 표기가 아니면(예: 글자 빠짐 '가열조용') 자동으로 정하지 않고 확인 필요
+HEAT_HINTS = ("가열", "조리")
+
+
+def _glass_kind(name: str) -> str:
+    """'heat' | 'plain' | 'unclear'. 정확한 표기만 자동으로 정한다(틀린 값을 넣지 않게)."""
+    if any(w in name for w in HEAT_WORDS):
+        return "plain" if any(x in name for x in NOT_HEAT_MARKS) else "heat"
+    if any(h in name for h in HEAT_HINTS):
+        return "unclear"
+    return "plain"
+
+
 def auto_spec(materials: list[str]) -> tuple[str | None, str]:
     """(자동 값 또는 None, 메모). 4종이 없으면 (None, '')."""
     fams = families_in(materials)
@@ -23,7 +37,11 @@ def auto_spec(materials: list[str]) -> tuple[str | None, str]:
         return None, ""
     if fams == ["유리제"]:
         glass = [m for m in materials if "유리제" in m]
-        heat = any(any(w in m for w in HEAT_WORDS) for m in glass)
+        kinds = {_glass_kind(m) for m in glass}
+        if "unclear" in kinds or len(kinds) > 1:
+            odd = ", ".join(m for m in glass if _glass_kind(m) == "unclear") or ", ".join(glass)
+            return None, f"유리제 가열조리용 표기 확인 필요({odd}) — 재질 코드명 확인 후 입력"
+        heat = kinds == {"heat"}
         return (
             "가열조리용" if heat else "가열조리용 이외"
         ), "재질 코드명 표시로 정함 — 깊이·용량은 담당자 입력"
