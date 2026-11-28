@@ -20,7 +20,8 @@ from app.a3_judge.record_pick.rank import choose_record, expiry_warning
 from app.a3_judge.rule_check.maker_rule import check_maker
 from app.a3_judge.rule_check.material_rule import check_material
 from app.a3_judge.rule_check.record_rule import check_record
-from app.a3_judge.spec_class.classify import auto_spec
+from app.a3_judge.spec_class.classify import judge_spec
+from app.a3_judge.spec_class.tables import RULE_KEY as RULE_KEY_SPEC
 from app.core.schema.fields import Evidence
 from app.core.schema.history import (
     C_BL,
@@ -187,20 +188,28 @@ def _maker(
     return detail
 
 
-def _spec(row: HistoryRow) -> None:
+def _spec(row: HistoryRow, ctx: JudgeContext | None = None) -> None:
+    """재질 구분(RULES 11-5). 칸이 비면 자동 값 또는 '칸 입력 필요', 담당자가 적었으면 바꾸지 않고 모자란 입력만 비고에."""
     mats = material_list(row.text(C_MATERIAL))
-    value, memo = auto_spec(mats)
     cell = row.cells.get(C_SPEC)
-    if value:
-        row.set_ai(C_SPEC, value, [ev("RULE", "spec_class", memo)])
+    table = ctx.rule(RULE_KEY_SPEC) if ctx else None
+    j = judge_spec(mats, row.text(C_SPEC), table if isinstance(table, dict) else None)
+    if not j.families:
         row.set_note(TAG_SPEC, None)
-    elif memo and not (cell and cell.value):
+        return
+    if j.ai_value:
+        row.set_ai(C_SPEC, j.ai_value, [ev("RULE", "spec_class", j.evidence)])
+        row.set_note(TAG_SPEC, None)
+        return
+    if not (cell and cell.value):
         row.set_ai(
-            C_SPEC, None, [ev("RULE", "spec_class", memo)], flag="need_check", memo="칸 입력 필요"
+            C_SPEC,
+            None,
+            [ev("RULE", "spec_class", j.evidence)],
+            flag="need_check",
+            memo="칸 입력 필요",
         )
-        row.set_note(TAG_SPEC, memo)
-    else:
-        row.set_note(TAG_SPEC, None)
+    row.set_note(TAG_SPEC, j.note or None)
 
 
 def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext) -> None:
@@ -339,7 +348,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
             e.note += " — 부분품은 본품과 같은 재질(spare_same_as_model)"
     row.set_ai(C_MATERIAL, m.value, m.evidence, flag=m.flag, memo=m.memo)
 
-    _spec(row)
+    _spec(row, ctx)
     maker_detail = _maker(row, past, ctx, product)
     record_detail = _record(row, past, ctx, maker_detail.get("address", ""))
     _rule_check(row, ctx, maker_detail.get("address", ""))

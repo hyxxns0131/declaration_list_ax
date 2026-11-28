@@ -115,3 +115,30 @@ def test_color_words_english_korean():
     assert _color_ok(r, "white") is True
     assert _color_ok(r, "흰색") is True
     assert _color_ok(r, "BLUE") is False
+
+
+def test_spec_compare_ignores_order_and_units():
+    """실적 재질 구분 '깊이 3cm, 용량 1.2L' = 행 '용량 1200ml, 깊이 30mm' → 같은 구분. 가상 값."""
+    from datetime import date
+
+    from app.a3_judge.record_pick.rank import choose_record
+    from app.core.schema.record import Record
+
+    r = Record(
+        record_no="R-1",
+        factory_code="CN900000201",
+        materials=["도자기제"],
+        approved_on="2025-05-24",
+        spec_class="깊이 3cm, 용량 1.2L",
+        products=["BWL-W15"],
+    )
+    out = choose_record(
+        [r],
+        ["도자기제"],
+        "CN900000201",
+        "",
+        "도자기 그릇(BWL-W15)",
+        date(2026, 11, 27),
+        spec="용량 1200ml, 깊이 30mm",
+    )
+    assert out.record_no == "R-1" and out.candidates[0]["checks"]["재질 구분"] is True

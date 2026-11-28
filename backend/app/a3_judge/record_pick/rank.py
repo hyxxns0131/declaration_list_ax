@@ -17,6 +17,7 @@ from pydantic import Field as PField
 from app.a2_registry.records.service import expires_on, format_record_cell, is_expired, to_date
 from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.eligibility import covers_materials, covers_product, factory_match
+from app.a3_judge.spec_class.parse import same_spec as spec_equal
 from app.core.schema.record import Record
 
 
@@ -101,7 +102,7 @@ def choose_record(
         mats_ok = covers_materials(materials, r)
         name_ok = covers_product(name_ko, r)
         fits = bool(how) and mats_ok and name_ok
-        spec_ok = not (same_spec and spec and r.spec_class and r.spec_class != spec)
+        spec_ok = not (same_spec and spec and r.spec_class and not spec_equal(r.spec_class, spec))
         checks = {
             "공장": bool(how),
             "품명": name_ok,
@@ -149,8 +150,10 @@ def choose_record(
 
     notes: list[str] = []
     if same_spec and spec:
-        kept = [(r, h) for r, h in pool if not r.spec_class or r.spec_class == spec]
-        skipped = [r.record_no for r, _ in pool if r.spec_class and r.spec_class != spec]
+        kept = [(r, h) for r, h in pool if not r.spec_class or spec_equal(r.spec_class, spec)]
+        skipped = [
+            r.record_no for r, _ in pool if r.spec_class and not spec_equal(r.spec_class, spec)
+        ]
         if skipped:
             notes.append(f"재질 구분이 달라 건너뛴 실적: {', '.join(skipped)}")
         if any(not r.spec_class for r, _ in kept):
