@@ -2,7 +2,9 @@
 // 탭 4. 재질·실적 판단 › 신고건 묶음 (DESIGN 5장). 부품 배치와 상태 연결만 한다 — 데이터는 judge·history API에서. 담당: LSY
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
+import { AppliedRules } from "@/components/judge/AppliedRules";
 import { ItemSheetButton } from "@/components/judge/ItemSheetButton";
+import { JudgeDetailPanel } from "@/components/judge/JudgeDetailPanel";
 import { JUDGE_COLUMNS, JudgeEvidence } from "@/components/judge/JudgeEvidence";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +25,15 @@ import { SHIPPER_KEY, rememberShipper } from "@/lib/hooks/useShipper";
 const P = JUDGE.page;
 const MODEL_COLUMN = "한글 제품명(모델넘버)";
 
+// 확인할 행(시연 피드백 ④): 상태가 확인 필요·자료 추가 필요이거나 실적이 비었으면 표 맨 앞에 ⚠ + 옅은 빨강
+function attention(row: HistoryRow): string {
+  if (row.status === "승인") return "";
+  const why: string[] = [];
+  if (row.status === "확인 필요" || row.status === "자료 추가 필요") why.push(row.status);
+  if (!String(shown(row.cells[JUDGE_COLUMNS.record]) ?? "")) why.push(P.noRecord);
+  return why.join(" · ");
+}
+
 const th = { textAlign: "left", padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.sm } as const;
 const td = { padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.md, verticalAlign: "top" } as const;
 
@@ -36,6 +47,9 @@ export default function JudgePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [evidence, setEvidence] = useState<{ row: HistoryRow; column: string } | null>(null);
+  // 행 체크박스는 '고르기'만 한다. 품목사항은 도구 줄의 별도 버튼으로 만든다(시연 피드백 11/27)
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [active, setActive] = useState<HistoryRow | null>(null);
 
   useEffect(() => {
     getShippers()
@@ -62,6 +76,8 @@ export default function JudgePage() {
   useEffect(() => {
     setDecls(null);
     setOpen(new Set());
+    setPicked(new Set());
+    setActive(null);
     setMessage("");
     load();
     if (shipperId) rememberShipper(shipperId);
@@ -81,6 +97,19 @@ export default function JudgePage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const allRowIds = useMemo(() => (decls ?? []).flatMap((d) => d.row_ids), [decls]);
+  // 화면(표) 순서를 지켜서 넘긴다 — 첫 행이 대표품목
+  const pickedIds = useMemo(() => allRowIds.filter((id) => picked.has(id)), [allRowIds, picked]);
+  const pick = (ids: string[], on: boolean) => {
+    const next = new Set(picked);
+    ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+    setPicked(next);
+  };
+  const pickGroup = (d: Declaration) => {
+    setPicked(new Set(d.row_ids));
+    setOpen(new Set([...open, d.declaration_id]));
   };
 
   const toggle = (id: string) => {
@@ -121,6 +150,7 @@ export default function JudgePage() {
           </>
         }
       />
+      {shipperId && <AppliedRules shipperId={shipperId} />}
       {message && <Notice>{message}</Notice>}
       {error !== null && <ErrorLine error={error} onRetry={load} />}
       {!shipperId && <EmptyState text={T.pickShipper} />}
@@ -129,6 +159,32 @@ export default function JudgePage() {
 
       {decls && decls.length > 0 && (
         <Card>
+          <div
+            style={{
+              display: "flex",
+              gap: space.sm,
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              marginBottom: space.sm,
+            }}
+          >
+            <div style={{ display: "flex", gap: space.xs, alignItems: "center", flexWrap: "wrap" }}>
+              <Button small onClick={() => setPicked(new Set(allRowIds))}>
+                {P.selectAll}
+              </Button>
+              <Button small variant="ghost" onClick={() => setPicked(new Set())} disabled={!picked.size}>
+                {P.clearAll}
+              </Button>
+              <span style={{ color: colors.muted, fontSize: font.sm }}>{P.pickedCount(pickedIds.length)}</span>
+            </div>
+            <ItemSheetButton
+              shipperId={shipperId}
+              selectedRowIds={pickedIds}
+              onCreated={() => setPicked(new Set())}
+              showReasons
+            />
+          </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -145,6 +201,10 @@ export default function JudgePage() {
           <tbody>
             {decls.map((d, i) => {
               const isOpen = open.has(d.declaration_id);
+              const flagged = d.row_ids.filter((id) => {
+                const r = byId.get(id);
+                return r ? attention(r) : false;
+              }).length;
               return (
                 <Fragment key={d.declaration_id}>
                   <tr style={{ background: colors.bgSubtle }}>
@@ -152,6 +212,11 @@ export default function JudgePage() {
                       <Button small variant="ghost" onClick={() => toggle(d.declaration_id)}>
                         {isOpen ? "▾" : "▸"} {P.group(i + 1)}
                       </Button>
+                      {flagged > 0 && (
+                        <span title={P.flaggedRows(flagged)} style={{ color: colors.mismatch, fontWeight: 700, fontSize: font.sm }}>
+                          ⚠ {flagged}
+                        </span>
+                      )}
                     </td>
                     <td style={td}>
                       {d.key.vessel_key.replace(/^모선명:/, "") || "-"}
@@ -173,7 +238,9 @@ export default function JudgePage() {
                       ))}
                     </td>
                     <td style={td}>
-                      <ItemSheetButton shipperId={shipperId} selectedRowIds={d.row_ids} onCreated={() => setMessage("")} />
+                      <Button small onClick={() => pickGroup(d)}>
+                        {P.pickGroup}
+                      </Button>
                     </td>
                   </tr>
                   {isOpen && (
@@ -182,6 +249,14 @@ export default function JudgePage() {
                         <table style={{ width: "100%", borderCollapse: "collapse" }}>
                           <thead>
                             <tr>
+                              <th style={{ ...th, width: 28 }}>
+                                <input
+                                  type="checkbox"
+                                  aria-label={P.pickGroup}
+                                  checked={d.row_ids.every((id) => picked.has(id))}
+                                  onChange={(e) => pick(d.row_ids, e.target.checked)}
+                                />
+                              </th>
                               <th style={th}>{P.rowCols.model}</th>
                               <th style={th}>{P.rowCols.material}</th>
                               <th style={th}>{P.rowCols.record}</th>
@@ -194,16 +269,59 @@ export default function JudgePage() {
                               if (!row) {
                                 return (
                                   <tr key={id}>
-                                    <td colSpan={4} style={{ ...td, color: colors.muted }}>
+                                    <td colSpan={5} style={{ ...td, color: colors.muted }}>
                                       {id} · {P.rowMissing}
                                     </td>
                                   </tr>
                                 );
                               }
                               return (
-                                <tr key={id} style={{ color: row.status === "승인" ? colors.approved : colors.text }}>
+                                <tr
+                                  key={id}
+                                  style={{
+                                    color: row.status === "승인" ? colors.approved : colors.text,
+                                    background:
+                                      active?.row_id === id
+                                        ? colors.primarySoft
+                                        : attention(row)
+                                          ? colors.mismatchSoft
+                                          : "transparent",
+                                  }}
+                                >
+                                  <td style={{ ...td, whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={P.pickRow(String(shown(row.cells[MODEL_COLUMN]) ?? row.model))}
+                                      checked={picked.has(id)}
+                                      onChange={(e) => pick([id], e.target.checked)}
+                                    />
+                                    {attention(row) && (
+                                      <span
+                                        title={attention(row)}
+                                        aria-label={attention(row)}
+                                        style={{ color: colors.mismatch, fontWeight: 700, marginLeft: 4 }}
+                                      >
+                                        ⚠
+                                      </span>
+                                    )}
+                                  </td>
                                   <td style={td}>
-                                    {String(shown(row.cells[MODEL_COLUMN]) ?? row.model)}
+                                    <button
+                                      type="button"
+                                      onClick={() => setActive(active?.row_id === id ? null : row)}
+                                      title={P.openDetail}
+                                      style={{
+                                        border: "none",
+                                        background: "none",
+                                        padding: 0,
+                                        cursor: "pointer",
+                                        color: colors.primary,
+                                        fontWeight: 700,
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      {String(shown(row.cells[MODEL_COLUMN]) ?? row.model)}
+                                    </button>
                                     {row.is_part && <Badge>{P.part}</Badge>}
                                   </td>
                                   <td style={td}>{cell(row, JUDGE_COLUMNS.material)}</td>
@@ -224,6 +342,8 @@ export default function JudgePage() {
         </table>
         </Card>
       )}
+
+      {active && <JudgeDetailPanel row={active} onClose={() => setActive(null)} />}
 
       {evidence && (
         <JudgeEvidence row={evidence.row} column={evidence.column} onClose={() => setEvidence(null)} onChanged={load} />

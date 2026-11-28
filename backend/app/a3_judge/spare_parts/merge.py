@@ -53,10 +53,16 @@ def merge_spare_lines(lines: list[DocumentLine]) -> tuple[list[DocumentLine], Me
     if not parts:
         return lines, None
     model, need_check, note = choose_name_model(mains, parts)
+    # 입수 = 부분품 줄 전체 개수(PCS)의 합(HS 결정 11/26, AGENTS 4-6). 한 줄이라도 모르면 비운다
+    pcs = [p.pcs() for p in parts]
+    quantity = (
+        round(sum(v for v in pcs if v is not None), 4) if all(v is not None for v in pcs) else None
+    )
     merged = DocumentLine(
         model=model,
         description=f"SPARE PARTS FOR {model}".strip(),
-        qty_per_carton=None,  # 여러 부품을 합쳐 입수는 정하지 않는다
+        qty_per_carton=None,  # 여러 부품을 합쳐 카톤당 수량은 정하지 않는다
+        quantity=quantity,
         cartons=_sum([p.cartons for p in parts]),
         net_kg=_sum([p.net_kg for p in parts]),
         amount=_sum([p.amount for p in parts]),

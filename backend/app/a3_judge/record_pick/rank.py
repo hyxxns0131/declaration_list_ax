@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from pydantic import Field as PField
 
 from app.a2_registry.records.service import expires_on, format_record_cell, is_expired, to_date
+from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.eligibility import covers_materials, covers_product, factory_match
 from app.core.schema.record import Record
 
@@ -99,6 +100,15 @@ def choose_record(
             "재질 구분": spec_ok,
             "기간": bool(approved) and not expired,
         }
+        color_bad = color_check and _color_ok(r, color) is False
+        if color_check:
+            checks["색상"] = not color_bad
+        reason = _reason(checks, materials, r, approved, on)
+        if color_bad:
+            sample = ", ".join(sorted({s.color.strip() for s in r.sample_parts if s.color.strip()}))
+            reason = " / ".join(
+                x for x in (reason, f"색상 다름(검체 {sample}, 현품 {color.strip()})") if x
+            )
         out.candidates.append(
             {
                 "record_no": r.record_no,
@@ -113,7 +123,7 @@ def choose_record(
                 "checks": checks,
                 "missing_materials": sorted(set(materials) - set(r.materials)),
                 "status": "후보",
-                "reason": _reason(checks, materials, r, approved, on),
+                "reason": reason,
             }
         )
         if fits and not expired and approved:
@@ -138,7 +148,7 @@ def choose_record(
             notes.append("실적 쪽 재질 구분 기록 없음 → 같은 구분인지 확인 필요")
         if pool and not kept:
             out.precise_needed, out.need_check = True, True
-            out.note = " / ".join(notes) + " → 같은 재질 구분의 유효한 실적 없음 → 정밀검사 대상"
+            out.note = no_record.spec_mismatch(notes)
             _mark(out)
             return out
         pool = kept
@@ -148,13 +158,11 @@ def choose_record(
         out.precise_needed, out.need_check = True, True
         if expired_fit:
             last = max(expired_fit, key=lambda c: c["approved_on"] or "")
-            out.note = (
-                f"실적 만료 ({last['record_no']}, {(last['expires_on'] or '').replace('-', '.')}) "
-                "→ 정밀검사 신청 대상"
+            out.note = no_record.expired(
+                last["record_no"], (last["expires_on"] or "").replace("-", ".")
             )
         else:
-            who = factory_code or "주소 기준"
-            out.note = f"이 공장({who})에서 이 재질을 모두 포함하는 유효한 정밀검사 실적 없음 → 정밀검사 대상"
+            out.note = no_record.no_valid_record(factory_code)
         _mark(out)
         return out
 
@@ -179,7 +187,7 @@ def choose_record(
                 notes.append(f"색상이 안 맞아 건너뛴 실적: {', '.join(fails)}")
         else:
             out.precise_needed, out.need_check = True, True
-            out.note = f"{best.record_no}실적과 현품({color})의 색상이 달라 추가 정밀검사 필요"
+            out.note = no_record.color_mismatch(best.record_no, color)
             _mark(out)
             return out
 

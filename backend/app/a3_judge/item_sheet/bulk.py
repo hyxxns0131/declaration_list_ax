@@ -1,7 +1,7 @@
 """품목사항 엑셀 한꺼번에 내려받기(전체 / 같은 품목끼리). AI 없음. 담당: LSY [신규] (HS 요청 11/26)
 
 - 유니패스는 신고건 1개 = 품목사항 파일 1개라서, ZIP 안에 신고건마다 xlsx 1개를 넣는다.
-  파일 이름: <화주>_신고건NN_<모선>_<제조업소>.xlsx. 검토용 합본 xlsx(신고건마다 시트 1개)도 같이 넣는다.
+  파일 이름: <화주>_신고건NN_<모선>_<제조업소>.xlsx. 검토용 전체 xlsx(시트 1장, 신고건 사이 빈 행, 막힌 건도 이유와 함께)도 같이 넣는다.
 - '같은 품목끼리'는 어느 신고건을 내려받을지 고르는 것일 뿐, 서로 다른 신고건을 한 파일로 합치지 않는다
   (한 품목사항 = 한 신고건, check_one_declaration 그대로).
 - 검사에 걸린 신고건(한 신고건이 아님, 실적 자료 없음, 행 없음)은 빼고 ZIP 안 '제외됨.txt'와 응답에 이유를 남긴다.
@@ -104,20 +104,47 @@ def _problems(rows: list[HistoryRow], settings: object) -> list[str]:
     return reasons
 
 
-def _combined(sheets: list[tuple[str, list[list[str]]]]) -> bytes:
-    """검토용 합본: 신고건마다 시트 1개(시트끼리 섞지 않는다)."""
+REVIEW_NOTICE = "검토용 — 여러 신고건이 함께 있습니다. 유니패스에는 신고건별 파일을 올리세요."
+REVIEW_HEAD = ("신고건", "신고 가능", "막힌 이유")
+
+
+def review_workbook(
+    items: list[tuple[int, Declaration, list[HistoryRow]]], settings: object
+) -> bytes:
+    """검토용 전체 엑셀(시연 피드백 11/27): 시트 1장에 모든 신고건, 신고건 사이 빈 행 1개(기존 시트 방식).
+    막힌 신고건도 넣고 '신고 가능 = N' + 이유를 적는다. 신고용 파일과 헷갈리지 않게 1행에 안내를 둔다."""
     wb = Workbook()
-    wb.remove(wb.active)
-    for title, rows in sheets:
-        ws = wb.create_sheet(title[:31])
-        ws.append([h for h, _ in HEADERS])
-        for values in rows:
-            ws.append(values)
-    if not wb.sheetnames:
-        wb.create_sheet("없음").append(["내려받을 신고건이 없습니다"])
+    ws = wb.active
+    ws.title = "검토용_전체"
+    ws.append([REVIEW_NOTICE])
+    ws.append([*REVIEW_HEAD, *(h for h, _ in HEADERS)])
+    for i, (no, _d, rows) in enumerate(items):
+        if i:
+            ws.append([])  # 신고건 경계 = 빈 행 1개
+        reasons = _problems(rows, settings)
+        ok = "Y" if not reasons else "N"
+        why = " / ".join(reasons)
+        for values in build_item_sheet(rows).rows if rows else []:
+            ws.append([f"신고건{no:02d}", ok, why, *values])
+        if not rows:
+            ws.append([f"신고건{no:02d}", ok, why])
+    if not items:
+        ws.append(["내려받을 신고건이 없습니다"])
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def review_export(shipper_id: str, declaration_ids: list[str] | None = None) -> tuple[str, bytes]:
+    """(파일 이름, xlsx). 전체 또는 고른 신고건. 검사에 걸린 신고건도 이유와 함께 넣는다."""
+    items = _declarations(shipper_id)
+    if declaration_ids:
+        wanted = set(declaration_ids)
+        items = [x for x in items if x[1].declaration_id in wanted]
+    if not items:
+        raise AppError("not_found", "신고건이 없습니다. 검역 리스트에서 서류를 먼저 올리세요.", 404)
+    data = review_workbook(items, get_rules(shipper_id))
+    return f"품목사항_검토용_{_safe(shipper_id, 20)}_{date.today():%Y%m%d}.xlsx", data
 
 
 def export(
@@ -150,7 +177,6 @@ def export(
     settings = get_rules(shipper_id)
     included: list[dict] = []
     excluded: list[dict] = []
-    sheets: list[tuple[str, list[list[str]]]] = []
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for no, d, rows in chosen:
@@ -164,7 +190,6 @@ def export(
             vessel = d.key.vessel_key.replace("모선명:", "")
             name = f"{_safe(shipper_id, 20)}_신고건{no:02d}_{_safe(vessel)}_{_safe(d.key.factory_code)}.xlsx"
             zf.writestr(name, write_xlsx(sheet))
-            sheets.append((f"신고건{no:02d}", sheet.rows))
             included.append(
                 {
                     "declaration_id": d.declaration_id,
@@ -174,7 +199,7 @@ def export(
                     "warnings": sheet.warnings,
                 }
             )
-        zf.writestr(f"검토용_합본_{_safe(shipper_id, 20)}.xlsx", _combined(sheets))
+        zf.writestr(f"검토용_전체_{_safe(shipper_id, 20)}.xlsx", review_workbook(chosen, settings))
         lines = [
             f"신고건 {x['number']} ({x['declaration_id']}): {' / '.join(x['reasons'])}"
             for x in excluded

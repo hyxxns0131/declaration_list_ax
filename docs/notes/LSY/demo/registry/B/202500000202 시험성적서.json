@@ -1,0 +1,18 @@
+{
+  "kind": "시험성적서",
+  "data": {
+    "receipt_no": "202500000202",
+    "approval_date": "2025-05-24",
+    "samples": [
+      {
+        "material": "도자기",
+        "part": "그릇 본체",
+        "color": "BLUE",
+        "remark": ""
+      }
+    ],
+    "models": [
+      "BWL-B15"
+    ]
+  }
+}

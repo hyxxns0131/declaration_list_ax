@@ -1,0 +1,21 @@
+{
+  "kind": "수입신고서",
+  "model": "BWL-B15",
+  "data": {
+    "receipt_no": "202500000202",
+    "receipt_date": "2025-05-10",
+    "accepted_date": "2025-05-24",
+    "inspection_type": "정밀",
+    "product_en": "CERAMIC BOWL(BWL-B15)",
+    "product_ko": "도자기 그릇(BWL-B15)",
+    "materials": [
+      {
+        "code": "",
+        "name": "도자기제"
+      }
+    ],
+    "maker_code": "CN900000201",
+    "maker_name": "VIRTUAL HANSEONG CERAMICS CO., LTD.",
+    "maker_address": "NO. 5 CLAY ROAD, KILN TOWN, VIRTUAL PROVINCE, CN"
+  }
+}

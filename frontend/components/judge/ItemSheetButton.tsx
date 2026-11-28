@@ -1,5 +1,6 @@
 "use client";
-// 품목사항 만들기 (DESIGN 5장). props: shipperId, selectedRowIds → onCreated(fileId). AI 없음. 담당: LSY
+// 품목사항 만들기 (DESIGN 5장). props: shipperId, selectedRowIds, showReasons? → onCreated(fileId). AI 없음. 담당: LSY
+// showReasons: 한 신고건이 아니라 막혔을 때 이유를 버튼 아래에 바로 보여 준다(시연 피드백 11/27)
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
@@ -19,10 +20,12 @@ export function ItemSheetButton({
   shipperId,
   selectedRowIds,
   onCreated,
+  showReasons = false,
 }: {
   shipperId: string;
   selectedRowIds: string[];
   onCreated: (fileId: string) => void;
+  showReasons?: boolean;
 }) {
   const [check, setCheck] = useState<ItemSheetPreview | null>(null);
   const [open, setOpen] = useState(false);
@@ -64,7 +67,7 @@ export function ItemSheetButton({
 
   return (
     <>
-      <span title={title}>
+      <span title={title} style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: space.xs }}>
         <Button
           variant="primary"
           disabled={disabled}
@@ -77,6 +80,11 @@ export function ItemSheetButton({
           {HOME.buttons.itemSheet}
           {selectedRowIds.length ? ` (${selectedRowIds.length})` : ""}
         </Button>
+        {showReasons && check && !check.ok && (
+          <span role="status" style={{ color: colors.mismatch, fontSize: font.sm, textAlign: "right", maxWidth: 460 }}>
+            {T.blocked} {check.reasons.join(" / ")}
+          </span>
+        )}
       </span>
       {open && (
         <Modal

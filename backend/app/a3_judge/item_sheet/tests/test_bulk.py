@@ -31,7 +31,7 @@ def test_all_export_counts_and_exclusions(client):  # noqa: F811
     assert len(out["included"]) + len(out["excluded"]) == len(decls)  # 빠뜨린 신고건 없음
     zf = _zip(client, out["file_id"])
     names = zf.namelist()
-    per_decl = [n for n in names if n.endswith(".xlsx") and not n.startswith("검토용_합본")]
+    per_decl = [n for n in names if n.endswith(".xlsx") and not n.startswith("검토용_전체")]
     assert len(per_decl) == len(out["included"])
     assert all(n.startswith("A_신고건") for n in per_decl)
     assert "제외됨.txt" in names
@@ -65,9 +65,22 @@ def test_one_sheet_never_mixes_declarations(client):  # noqa: F811
         body = [r for r in ws.iter_rows(min_row=2, values_only=True) if any(r)]
         assert len(body) == rows_of[x["declaration_id"]]  # 그 신고건 행만
         assert [r[2] for r in body].count("Y") == 1  # 대표품목 1개
-    book = next(n for n in zf.namelist() if n.startswith("검토용_합본"))
-    wb = load_workbook(BytesIO(zf.read(book)))
-    assert len(wb.sheetnames) == max(1, len(out["included"]))
+    # 검토용 전체: 시트 1장, 모든 신고건(막힌 건 포함), 신고건 사이 빈 행 1개 (시연 피드백 11/27)
+    book = next(n for n in zf.namelist() if n.startswith("검토용_전체"))
+    ws = load_workbook(BytesIO(zf.read(book))).active
+    assert ws.cell(1, 1).value.startswith("검토용") and ws.cell(2, 1).value == "신고건"
+    labels = [r[0] for r in ws.iter_rows(min_row=3, values_only=True)]
+    assert len({x for x in labels if x}) == len(decls)
+    assert labels.count(None) == len(decls) - 1  # 경계 빈 행
+
+
+def test_review_download_alone(client):  # noqa: F811
+    decls = _upload_a(client)
+    r = client.get("/api/judge/item-sheet/review", params={"shipper_id": "A"})
+    assert r.status_code == 200 and "spreadsheetml" in r.headers["content-type"]
+    ws = load_workbook(BytesIO(r.content)).active
+    flags = {row[1] for row in ws.iter_rows(min_row=3, values_only=True) if row[0]}
+    assert flags <= {"Y", "N"} and len(decls) >= 1
 
 
 def test_bad_group_basis(client):  # noqa: F811

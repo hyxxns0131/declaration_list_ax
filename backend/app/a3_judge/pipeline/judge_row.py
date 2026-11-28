@@ -11,11 +11,13 @@ from app.a3_judge.factory.choose import choose_factory
 from app.a3_judge.history_lookup.lookup import find_past
 from app.a3_judge.history_lookup.model_key import join_maker, norm_company, split_maker
 from app.a3_judge.material.codes import material_list
-from app.a3_judge.material.resolve import resolve_material
+from app.a3_judge.material.resolve import DEFAULT_ORDER, resolve_material
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
+from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.multi_record import choose_split
 from app.a3_judge.record_pick.rank import choose_record, expiry_warning
+from app.a3_judge.rule_check.maker_rule import check_maker
 from app.a3_judge.rule_check.material_rule import check_material
 from app.a3_judge.rule_check.record_rule import check_record
 from app.a3_judge.spec_class.classify import auto_spec
@@ -37,6 +39,7 @@ TAG_MAKER = "제조사"
 TAG_SPEC = "재질 구분"
 TAG_MATERIAL_RULE = "재질 규칙"
 TAG_RECORD_RULE = "실적 규칙"
+TAG_MAKER_RULE = "제조사 규칙"
 
 
 def _is_doc_missing_mark(row: HistoryRow, col: str) -> bool:
@@ -85,7 +88,28 @@ def _maker(
     if cell and cell.final_value:
         detail["notes"].append("담당자가 정한 값")
         detail["address"] = _doc_maker(row, ctx)[1]
+        # 담당자가 고른 코드가 규칙에 맞는지 — 값은 그대로, 비고에만(RULES 11-7·11-9)
+        name, code = split_maker(row.text(C_MAKER))
+        facs, _src = ctx.factory_lookup(name) if code else (None, "")
+        past_codes = {
+            c
+            for c in (
+                split_maker(past.text(C_MAKER))[1] if past else "",
+                (product or {}).get("maker_code", ""),
+            )
+            if c
+        }
+        problems = check_maker(
+            code,
+            facs,
+            detail["address"],
+            past_codes,
+            bool(ctx.rule("prefer_past_factory_code", False)),
+            ctx.addr_min_score,
+        )
+        row.set_note(TAG_MAKER_RULE, " / ".join(problems) or None)
         return detail
+    row.set_note(TAG_MAKER_RULE, None)  # 사람 값이 없으면 규칙 경고도 없음
     doc_name, doc_addr, doc_id = _doc_maker(row, ctx)
     detail["address"] = doc_addr
     past_val = past.text(C_MAKER) if past else ""
@@ -184,12 +208,12 @@ def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeCon
     no, approved = parse_record_cell(raw)
     if not no:
         row.set_ai(C_RECORD, None, flag="need_check", memo="등록된 실적·이력 없음")
-        row.set_note(TAG_RECORD, "등록된 실적·같은 모델 이력 없음 → 정밀검사 대상인지 확인")
+        row.set_note(TAG_RECORD, no_record.NO_DATA)
         return
     if approved and is_expired(approved, ctx.today):
         exp = expires_on(approved).strftime("%Y.%m.%d")
         row.set_ai(C_RECORD, None, flag="need_check", memo=f"실적 만료 ({no}, {exp})")
-        row.set_note(TAG_RECORD, f"실적 만료 ({no}, {exp}) → 정밀검사 신청 대상")
+        row.set_note(TAG_RECORD, no_record.expired(no, exp))
         return
     e = ev("HISTORY", past.row_id, f"이력 {past.text(C_BL)} 실적 (유효)")  # type: ignore[union-attr]
     row.set_ai(C_RECORD, raw, [e])
@@ -197,7 +221,7 @@ def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeCon
 
 
 def _record(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext, address: str) -> dict:
-    detail: dict = {"candidates": []}
+    detail: dict = {"candidates": [], "basis_date": ctx.today.isoformat()}
     if not ctx.records:
         _record_from_history(row, past, ctx)
         return detail
@@ -299,6 +323,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
 
     _names(row, past, from_main, product)
 
+    order = list(ctx.rule("material_source_order", []) or []) or None  # type: ignore[call-overload]
     m = resolve_material(
         row.model,
         past,
@@ -306,7 +331,7 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
         product=product,
         records=ctx.records,
         docs=ctx.docs_for(row),
-        order=list(ctx.rule("material_source_order", []) or []) or None,  # type: ignore[call-overload]
+        order=order,
         known=ctx.known_materials,
     )
     if from_main:
@@ -320,7 +345,12 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     _rule_check(row, ctx, maker_detail.get("address", ""))
     row.refresh_status()
     detail = {
-        "material": {"candidates": m.candidates, "evidence": [e.model_dump() for e in m.evidence]},
+        "material": {
+            "candidates": m.candidates,
+            "evidence": [e.model_dump() for e in m.evidence],
+            # 실제로 쓴 근거 순서(화주 설정 material_source_order) — 화면 재질 카드 4개를 이 순서로 보인다
+            "order": order or list(DEFAULT_ORDER),
+        },
         "maker": maker_detail,
         "record": record_detail,
         "past_row_id": past.row_id if past else None,
