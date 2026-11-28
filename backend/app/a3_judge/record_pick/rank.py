@@ -18,7 +18,8 @@ from app.a2_registry.records.service import expires_on, format_record_cell, is_e
 from app.a3_judge.color.families import color_group
 from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.eligibility import covers_materials, covers_product, factory_match
-from app.a3_judge.spec_class.parse import same_spec as spec_equal
+from app.a3_judge.record_pick.spec_filter import spec_ok as spec_fits
+from app.a3_judge.record_pick.spec_filter import split_by_spec
 from app.core.schema.record import Record
 
 
@@ -112,7 +113,7 @@ def choose_record(
         mats_ok = covers_materials(materials, r)
         name_ok = covers_product(name_ko, r)
         fits = bool(how) and mats_ok and name_ok
-        spec_ok = not (same_spec and spec and r.spec_class and not spec_equal(r.spec_class, spec))
+        spec_ok = spec_fits(r.spec_class, spec, same_spec)
         checks = {
             "공장": bool(how),
             "품명": name_ok,
@@ -160,13 +161,11 @@ def choose_record(
 
     notes: list[str] = []
     if same_spec and spec:
-        kept = [(r, h) for r, h in pool if not r.spec_class or spec_equal(r.spec_class, spec)]
-        skipped = [
-            r.record_no for r, _ in pool if r.spec_class and not spec_equal(r.spec_class, spec)
-        ]
+        kept, skipped_pairs, no_spec = split_by_spec(pool, spec, lambda x: x[0].spec_class)
+        skipped = [r.record_no for r, _ in skipped_pairs]
         if skipped:
             notes.append(f"재질 구분이 달라 건너뛴 실적: {', '.join(skipped)}")
-        if any(not r.spec_class for r, _ in kept):
+        if no_spec:
             notes.append("실적 쪽 재질 구분 기록 없음 → 같은 구분인지 확인 필요")
         if pool and not kept:
             out.precise_needed, out.need_check = True, True
