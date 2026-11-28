@@ -15,7 +15,14 @@ def _rec(*colors: str) -> Record:
 def test_korean_english_pairs():
     assert color_group("노랑") == color_group("yellow") == "YELLOW"
     assert color_group("흰색") == color_group("WHITE") == "WHITE"
-    assert color_group("하늘색") is None and color_group("연두") is None  # 확인 필요 → 짝 없음
+    assert color_group("하늘색") == color_group("SKY BLUE") == "SKY BLUE"
+    assert (
+        color_group("연두")
+        == color_group("yellow green")
+        == color_group("황록색")
+        == "YELLOW GREEN"
+    )
+    assert color_group("민트") == "MINT" and color_group("청록") is None  # 애매한 이름은 짝 없음
 
 
 def test_record_with_many_korean_colors():
@@ -24,10 +31,13 @@ def test_record_with_many_korean_colors():
     assert _color_ok(r, "YELLOW") is True
     assert _color_ok(r, "BLUE") is True
     assert _color_ok(r, "하늘색") is True  # 글자가 같으면 통과
-    assert _color_ok(r, "SKY BLUE") is False  # 짝 없음 → 다름(보수적)
+    assert _color_ok(r, "SKY BLUE") is True  # 하늘색 = SKY BLUE (같은 이름을 옮긴 것)
+    assert _color_ok(r, "YELLOW GREEN") is True  # 연두
     assert _color_ok(r, "WHITE") is False
 
 
 def test_similar_colors_not_merged():
     assert _color_ok(_rec("하늘색"), "BLUE") is False
     assert _color_ok(_rec("연두"), "GREEN") is False
+    assert _color_ok(_rec("남색"), "BLUE") is False
+    assert _color_ok(_rec("하늘색"), "LIGHT BLUE") is False
