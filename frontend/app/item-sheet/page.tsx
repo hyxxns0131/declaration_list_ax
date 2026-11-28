@@ -3,6 +3,7 @@
 // - 신고건마다 [품목사항 만들기] (예전과 같음)
 // - [신고용: 신고건별 ZIP]: 검사를 통과한 모든 신고건 → ZIP(신고건마다 xlsx + 검토용 전체 + 제외됨.txt)
 // - [검토용 전체 엑셀]: 시트 1장, 신고건 사이 빈 행, 막힌 건도 이유와 함께(신고용 아님, 시연 피드백 11/27)
+// - 신고건마다 [구글 시트로]: 공유 폴더에 새 구글 시트(품목사항_A사_신고건1_날짜, 11/28)
 // - [같은 품목끼리 내려받기]: 재질·제조업소·품목·실적번호로 묶어 고른 묶음만 ZIP. 신고건을 합치지는 않는다
 import { useCallback, useEffect, useState } from "react";
 
@@ -12,12 +13,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
 import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBox";
 import { colors, font, space } from "@/components/ui/tokens";
-import { createItemBulk, downloadItemBulk, downloadItemReview, getDeclarations, getItemGroups } from "@/lib/api/judge";
+import { createItemBulk, createItemGoogleSheet, downloadItemBulk, downloadItemReview, getDeclarations, getItemGroups } from "@/lib/api/judge";
 import { fmtDate } from "@/lib/format";
 import { useShipper } from "@/lib/hooks/useShipper";
 import { T } from "@/lib/text/common";
 import { JUDGE } from "@/lib/text/judge";
 import type { Declaration } from "@/lib/types/history";
+import type { GoogleSheetOut } from "@/lib/api/judge";
 import type { ItemBulkOut, ItemGroup, ItemGroupBasis } from "@/lib/types/judge";
 
 const P = JUDGE.page;
@@ -33,6 +35,8 @@ export default function ItemSheetPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ItemBulkOut | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [gBusy, setGBusy] = useState<string | null>(null);
+  const [gOut, setGOut] = useState<GoogleSheetOut | null>(null);
 
   const load = useCallback(() => {
     if (!shipperId) return;
@@ -79,6 +83,19 @@ export default function ItemSheetPage() {
     }
   };
 
+  const toGoogle = async (declarationId: string) => {
+    setGBusy(declarationId);
+    setGOut(null);
+    setError(null);
+    try {
+      setGOut(await createItemGoogleSheet(shipperId, declarationId));
+    } catch (e) {
+      setError(e);
+    } finally {
+      setGBusy(null);
+    }
+  };
+
   const toggle = (key: string, on: boolean) => {
     const next = new Set(picked);
     if (on) next.add(key);
@@ -106,6 +123,17 @@ export default function ItemSheetPage() {
         }
       />
       {(shipperError ?? error) !== null && <ErrorLine error={shipperError ?? error} onRetry={load} />}
+
+      {gOut && (
+        <Notice tone={gOut.ok ? "info" : "warn"}>
+          {gOut.ok ? I.googleDone(gOut.title ?? "") : I.googleFail(gOut.reason ?? "")}{" "}
+          {gOut.ok && gOut.url && (
+            <a href={gOut.url} target="_blank" rel="noreferrer">
+              {I.googleOpen}
+            </a>
+          )}
+        </Notice>
+      )}
 
       {result && (
         <Card title={I.done(result.included.length, result.excluded.length)}>
@@ -207,7 +235,17 @@ export default function ItemSheetPage() {
                     {d.warnings.length > 0 ? <Badge tone="needCheck" title={d.warnings.join("\n")}>? {d.warnings.length}</Badge> : "-"}
                   </td>
                   <td>
-                    <ItemSheetButton shipperId={shipperId} selectedRowIds={d.row_ids} onCreated={() => undefined} />
+                    <div style={{ display: "flex", gap: space.xs, flexWrap: "wrap" }}>
+                      <ItemSheetButton shipperId={shipperId} selectedRowIds={d.row_ids} onCreated={() => undefined} />
+                      <Button
+                        small
+                        disabled={!shipperId || gBusy !== null}
+                        onClick={() => toGoogle(d.declaration_id)}
+                        title={I.googleHint}
+                      >
+                        {gBusy === d.declaration_id ? I.googleMaking : I.google}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

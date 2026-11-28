@@ -74,6 +74,12 @@ export const JUDGE = {
   },
   // 사이드바 › 품목사항 엑셀 (DESIGN 5-1)
   itemSheetPage: {
+    google: "구글 시트로",
+    googleMaking: "만드는 중…",
+    googleHint: "이 신고건을 공유 폴더에 구글 시트로 새로 만듭니다(품목사항_화주사_신고건N_날짜). 기존 파일은 건드리지 않습니다.",
+    googleDone: (title: string) => `구글 시트를 만들었습니다: ${title}`,
+    googleOpen: "시트 열기",
+    googleFail: (reason: string) => `구글 시트를 만들지 않았습니다: ${reason}`,
     title: "품목사항 엑셀",
     sub: "신고용은 신고건 1개 = 파일 1개(유니패스에 그대로 올림)입니다. 여러 신고건을 한눈에 보려면 검토용 전체 엑셀을 받으세요. AI를 쓰지 않습니다.",
     all: "신고용: 신고건별 ZIP",

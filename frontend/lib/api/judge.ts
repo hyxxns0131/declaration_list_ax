@@ -20,6 +20,21 @@ export const computeDeclarations = (shipperId: string) =>
 export const rejudgeShipper = (shipperId: string) =>
   api<{ rejudged: number }>(`/judge/rejudge?shipper_id=${encodeURIComponent(shipperId)}`, { method: "POST" });
 
+export interface GoogleSheetOut {
+  ok: boolean;
+  reason?: string;
+  title?: string;
+  url?: string;
+  rows?: number;
+}
+
+/** 신고건 1건 → 공유 폴더에 구글 시트 새로 만들기(ITEM_SHEET_FOLDER_ID). 로그인·폴더 없으면 ok=false + reason */
+export const createItemGoogleSheet = (shipperId: string, declarationId: string) =>
+  api<GoogleSheetOut>(
+    `/judge/item-sheet/google?shipper_id=${encodeURIComponent(shipperId)}&declaration_id=${encodeURIComponent(declarationId)}`,
+    { method: "POST" },
+  );
+
 export const getDeclarations = (shipperId: string) =>
   api<Declaration[]>(`/judge/declarations${qs({ shipper_id: shipperId })}`);
 
