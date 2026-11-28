@@ -66,3 +66,36 @@ def test_old_keys_kept_for_screen():
     c = choose_record([rec("A", ["금속제"], "2028-01-01")], ["금속제"], "CN1", "", "전기밥솥", ON)
     keys = {"record_no", "value", "materials", "approved_on", "expires_on", "expired", "fits"}
     assert keys <= set(c.candidates[0])
+
+
+def test_color_mismatch_marked_excluded():
+    """color_check면 검체 색이 다른 실적은 후보 목록에서 '제외' + 이유(색상 다름). 가상 값."""
+    from datetime import date
+
+    from app.a3_judge.record_pick.rank import choose_record
+    from app.core.schema.record import Record, SamplePart
+
+    def rec(no: str, approved: str, color: str) -> Record:
+        return Record(
+            record_no=no,
+            factory_code="CN900000201",
+            materials=["도자기제"],
+            approved_on=approved,
+            sample_parts=[SamplePart(material="도자기제", part="그릇 본체", color=color)],
+            products=["BWL-W15"],
+        )
+
+    out = choose_record(
+        [rec("R-WHITE", "2025-05-24", "WHITE"), rec("R-BLUE", "2025-07-13", "BLUE")],
+        ["도자기제"],
+        "CN900000201",
+        "",
+        "도자기 그릇(BWL-W15)",
+        date(2026, 11, 27),
+        color="WHITE",
+        color_check=True,
+    )
+    by = {c["record_no"]: c for c in out.candidates}
+    assert out.record_no == "R-WHITE"
+    assert by["R-BLUE"]["status"] == "제외" and "색상 다름" in by["R-BLUE"]["reason"]
+    assert by["R-BLUE"]["checks"]["색상"] is False and by["R-WHITE"]["checks"]["색상"] is True

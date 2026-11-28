@@ -100,6 +100,15 @@ def choose_record(
             "재질 구분": spec_ok,
             "기간": bool(approved) and not expired,
         }
+        color_bad = color_check and _color_ok(r, color) is False
+        if color_check:
+            checks["색상"] = not color_bad
+        reason = _reason(checks, materials, r, approved, on)
+        if color_bad:
+            sample = ", ".join(sorted({s.color.strip() for s in r.sample_parts if s.color.strip()}))
+            reason = " / ".join(
+                x for x in (reason, f"색상 다름(검체 {sample}, 현품 {color.strip()})") if x
+            )
         out.candidates.append(
             {
                 "record_no": r.record_no,
@@ -114,7 +123,7 @@ def choose_record(
                 "checks": checks,
                 "missing_materials": sorted(set(materials) - set(r.materials)),
                 "status": "후보",
-                "reason": _reason(checks, materials, r, approved, on),
+                "reason": reason,
             }
         )
         if fits and not expired and approved:
