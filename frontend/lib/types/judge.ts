@@ -77,7 +77,7 @@ export interface ItemBulkOut {
 export interface ModelDocFile {
   id: string;
   name: string;
-  kind: "excel" | "import_decl" | "json" | "image" | "precise" | "folder" | "other";
+  kind: "excel" | "import_decl" | "test_report" | "json" | "image" | "precise" | "folder" | "other";
 }
 
 export interface ModelDocs {

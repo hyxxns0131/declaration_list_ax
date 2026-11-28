@@ -53,8 +53,9 @@ export const JUDGE = {
     docsKind: {
       excel: "현품사진·라벨",
       import_decl: "수입신고서",
+      test_report: "시험성적서",
       json: "JSON",
-      image: "이미지",
+      image: "현품사진·라벨(PDF·이미지)",
       precise: "정밀실적 폴더",
       folder: "폴더",
       other: "파일",

@@ -8,6 +8,7 @@
 - 만료 판정은 A2 records 함수를 쓴다.
 """
 
+import re
 from datetime import date
 
 from pydantic import BaseModel
@@ -29,14 +30,22 @@ class RecordChoice(BaseModel):
     basis_date: str = ""  # 유효기간을 비교한 기준일(신고일, 없으면 오늘) — 화면에 "○월 ○일 기준"
 
 
+def color_words(text: str) -> set[str]:
+    """색 표기 → 비교용 낱말. 'WHITE(흰색)' → {'WHITE', '흰색'}, 'white / 흰색' → {'WHITE', '흰색'}.
+    시험성적서는 '영문(한글)'로, 선적서류는 영문만 쓰는 경우가 있어 한쪽 낱말만 같아도 같은 색으로 본다."""
+    parts = re.split(r"[()（）/,·]", text or "")
+    return {p.strip().upper() for p in parts if p.strip()}
+
+
 def _color_ok(rec: Record, color: str) -> bool | None:
     """None = 비교 불가(검체 색 기록 없음 또는 현품 색 없음)."""
-    if not color:
+    mine = color_words(color)
+    if not mine:
         return None
-    colors = {s.color.strip() for s in rec.sample_parts if s.color.strip()}
-    if not colors:
+    samples = [color_words(s.color) for s in rec.sample_parts if s.color.strip()]
+    if not samples:
         return None
-    return color.strip() in colors
+    return any(mine & s for s in samples)
 
 
 def _reason(
