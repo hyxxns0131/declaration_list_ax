@@ -27,7 +27,7 @@ export function ListStepper() {
     <nav aria-label="검역 리스트 단계" className="list-stepper" style={{ margin: `${space.xs}px 0 ${space.md}px` }}>
       <style>{`
         .list-stepper .ring { animation: stepGlow 1.6s ease-out 1; }
-        @keyframes stepGlow { from { box-shadow: 0 0 0 0 rgba(37,99,201,.45); } to { box-shadow: 0 0 0 12px rgba(37,99,201,0); } }
+        @keyframes stepGlow { from { box-shadow: 0 0 0 0 rgba(58,155,232,.45); } to { box-shadow: 0 0 0 12px rgba(58,155,232,0); } }
         @media (prefers-reduced-motion: reduce) { .list-stepper .ring { animation: none; } }
         .list-stepper a:focus-visible { outline: 2px solid ${LIST_BLUE}; outline-offset: 3px; border-radius: 999px; }
         @media (max-width: 760px) { .list-stepper .name, .list-stepper .left { display: none; } .list-stepper .current-name { display: block !important; } }
@@ -119,8 +119,8 @@ export function SideStepMark({ step }: { step: number }) {
         fontWeight: 800,
         display: "inline-grid",
         placeItems: "center",
-        background: info.done ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.22)",
-        color: info.done ? LIST_BLUE : "#fff",
+        background: info.done ? colors.okSoft : colors.pillWarnSoft,
+        color: info.done ? colors.ok : colors.pillWarnText,
         fontVariantNumeric: "tabular-nums",
       }}
     >

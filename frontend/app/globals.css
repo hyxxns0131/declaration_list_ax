@@ -1,48 +1,72 @@
-/* 공통 스타일 (DESIGN 8장 테마: 파란 바탕 + 흰 판, 파랑 하나만 강조색). 색 값은 components/ui/tokens.ts와 같게 둔다. 담당: KHS */
+/* 공통 스타일 (DESIGN 8장 테마, HS 요청 11/28: 연한 회청 바탕 + 큰 둥근 흰 판, 하늘색 하나만 강조색. 홈만 위쪽 파랑 띠).
+   색 값은 components/ui/tokens.ts와 같게 둔다. 담당: KHS */
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: "Pretendard", "Pretendard Variable", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
-  color: #1f2937;
+  color: #1e2a44;
   font-size: 14px;
-  background: #2563c9;
+  background: #eef3f9;
   -webkit-font-smoothing: antialiased;
 }
 button, input, select, textarea { font: inherit; }
 input, select, textarea {
-  border: 1px solid #dfe5ee;
+  border: 1px solid #dfe6ef;
   border-radius: 8px;
   background: #fff;
   color: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid #2563c9; outline-offset: 1px; }
-a { color: #2563c9; }
+input:focus, select:focus, textarea:focus { outline: 2px solid #3a9be8; outline-offset: 1px; }
+a { color: #2f8fe8; }
 
-/* 표 공통: 세로줄 없음, 아주 연한 가로줄, 작은 대문자·자간 회색 머리글, 마우스를 올린 줄은 연한 파랑 */
+/* 표 공통: 세로줄 없음, 아주 연한 가로줄, 흐린 회색 머리글(연한 바탕), 마우스를 올린 줄·고른 줄은 연한 하늘색 */
 main table th {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8a94a6;
+  letter-spacing: 0.04em;
+  color: #8a96a8;
   text-align: left;
   padding: 10px 12px;
-  border-bottom: 1px solid #e9edf3;
+  background: #f7f9fc;
+  border-bottom: 1px solid #edf1f7;
   white-space: nowrap;
 }
-main table td { padding: 14px 12px; border-bottom: 1px solid #eef1f6; }
-main table tbody tr:hover > td { background-color: #e8f0fc; }
-main table tbody tr[aria-selected="true"] > td { background-color: #e8f0fc; }
+main table td { padding: 14px 12px; border-bottom: 1px solid #f0f3f8; }
+main table tbody tr:hover > td { background-color: #f1f7fe; }
+main table tbody tr[aria-selected="true"] > td { background-color: #e7f2fd; }
 
 /* 검역이력처럼 칸이 많은 표(.grid): 같은 모양, 줄 높이만 조금 낮게. 칸 색(자료 추가 필요 등)은 그대로 */
 table.grid { border-collapse: collapse; width: 100%; font-size: 13px; background: #fff; }
-table.grid th, table.grid td { border: 0; border-bottom: 1px solid #eef1f6; padding: 10px 10px; text-align: left; vertical-align: top; }
-table.grid th { background: #fff; position: sticky; top: 0; z-index: 1; }
+table.grid th, table.grid td { border: 0; border-bottom: 1px solid #f0f3f8; padding: 10px 10px; text-align: left; vertical-align: top; }
+table.grid th { background: #f7f9fc; position: sticky; top: 0; z-index: 1; }
 /* 칸이 많은 표는 칸을 짓눌러 줄바꿈하지 않고 옆으로 스크롤한다(1366px 화면 대비) */
 table.sheet { width: max-content; min-width: 100%; }
 table.sheet td { max-width: 280px; }
 /* 메인 화면 시트: 행을 낮게(1366×768에서 15행 이상), 긴 칸은 한 줄로 줄이고 마우스를 올리면 전체(셀 title) */
 table.sheet th, table.sheet td { padding: 5px 8px; }
 table.sheet td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-button.mini { border: 1px solid #dfe5ee; background: #fff; border-radius: 6px; padding: 0 6px; margin-right: 2px; cursor: pointer; font-size: 12px; color: #6b7280; }
-.strike { text-decoration: line-through; color: #9ca3af; }
+button.mini { border: 1px solid #dfe6ef; background: #fff; border-radius: 6px; padding: 0 6px; margin-right: 2px; cursor: pointer; font-size: 12px; color: #6b7a90; }
+.strike { text-decoration: line-through; color: #9aa5b5; }
+
+/* 홈(전체 현황) 포털형: 파랑 띠 위 머리말은 흰 글자, 카드는 작은 모서리, 카드 제목 아래 짧은 파랑 줄, 강조 숫자는 진한 파랑 */
+.shell-home {
+  --ph-title: #ffffff;
+  --ph-sub: rgba(255, 255, 255, 0.82);
+  --ph-line: rgba(255, 255, 255, 0.22);
+  --card-radius: 8px;
+  --stat-accent: #1f5fe0;
+}
+.shell-home .card-title { position: relative; padding-bottom: 8px; }
+.shell-home .card-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: #1f5fe0;
+}
+.shell-home section, .shell-home .stat-card { box-shadow: 0 6px 24px rgba(20, 50, 110, 0.10); }
+.shell-home .stat-card { transition: transform 120ms ease, box-shadow 120ms ease; }
+.shell-home a:hover > .stat-card { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(20, 50, 110, 0.14); }
