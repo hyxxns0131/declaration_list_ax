@@ -3,8 +3,8 @@ import type { CSSProperties } from "react";
 
 import { colors, font, space } from "@/components/ui/tokens";
 
-/** 주 버튼 파랑(#1a73e8 근처). 테마 파랑과 맞춘다 */
-export const LIST_BLUE = colors.brand;
+/** 주 버튼 하늘색. 테마 강조색과 맞춘다 */
+export const LIST_BLUE = colors.primary;
 export const PILL_HEIGHT = 44;
 
 const pillBase: CSSProperties = {

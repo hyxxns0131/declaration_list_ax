@@ -45,9 +45,10 @@ export function LoginForm() {
         background: colors.panelBg,
         borderRadius: panelRadius,
         boxShadow: colors.panelShadow,
+        border: `1px solid ${colors.cardBorder}`,
       }}
     >
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: colors.brand, textAlign: "center", marginBottom: space.lg }}>{T.appName}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, color: colors.heading, textAlign: "center", marginBottom: space.lg }}>{T.appName}</h1>
       <label>
         {T.login.username}
         <input
@@ -77,7 +78,7 @@ export function LoginForm() {
           width: "100%",
           marginTop: space.lg,
           padding: space.sm + 2,
-          background: colors.brand,
+          background: colors.primary,
           color: "#fff",
           border: 0,
           borderRadius: 999,

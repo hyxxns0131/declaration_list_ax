@@ -35,8 +35,8 @@ export function ShipperBadge({ open }: { open: boolean }) {
           height: 40,
           borderRadius: 10,
           marginBottom: space.md,
-          background: "rgba(255, 255, 255, 0.16)",
-          color: "#fff",
+          background: colors.bgSubtle,
+          color: colors.brand,
           fontWeight: 800,
           textDecoration: "none",
         }}
@@ -51,14 +51,15 @@ export function ShipperBadge({ open }: { open: boolean }) {
         borderRadius: 12,
         padding: `${space.sm + 2}px ${space.md - 4}px`,
         marginBottom: space.md,
-        background: "rgba(255, 255, 255, 0.14)",
+        background: colors.bgSubtle,
+        border: `1px solid ${colors.cardBorder}`,
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", color: colors.sidebarText }}>
         {T.shipperPick.current}
       </div>
-      <div style={{ fontSize: font.lg, fontWeight: 800, color: "#fff", margin: "2px 0" }}>{label}</div>
-      <Link href={PICK} style={{ fontSize: font.sm, color: "#fff", opacity: 0.9 }}>
+      <div style={{ fontSize: font.lg, fontWeight: 800, color: colors.heading, margin: "2px 0" }}>{label}</div>
+      <Link href={PICK} style={{ fontSize: font.sm, color: colors.brand, fontWeight: 600, textDecoration: "none" }}>
         {chosen ? T.shipperPick.change : T.shipperPick.goPick} →
       </Link>
     </div>
@@ -78,7 +79,7 @@ export function ShipperGate({ pathname, children }: { pathname: string; children
             href={PICK}
             style={{
               display: "inline-block",
-              background: colors.brand,
+              background: colors.primary,
               color: "#fff",
               padding: `${space.sm}px ${space.lg}px`,
               borderRadius: 999,

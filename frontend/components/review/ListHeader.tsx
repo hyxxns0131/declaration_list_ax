@@ -76,7 +76,7 @@ export function ListHeader({
   return (
     <header style={{ marginBottom: space.xs }}>
       <div style={{ display: "flex", alignItems: "center", gap: space.md, flexWrap: "wrap" }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.brand }}>{title}</h1>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: colors.heading }}>{title}</h1>
         <ShipperSelect shippers={shippers} value={shipperId} onChange={setShipperId} />
         <span style={{ display: "flex", gap: space.xs + 2, flexWrap: "wrap" }}>
           {badges &&
