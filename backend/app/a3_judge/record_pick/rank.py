@@ -42,14 +42,21 @@ def color_words(text: str) -> set[str]:
 
 
 def _color_ok(rec: Record, color: str) -> bool | None:
-    """None = 비교 불가(검체 색 기록 없음 또는 현품 색 없음)."""
+    """True = 같은 색, False = 사전으로 확실히 다른 색, None = 판단 불가(기록 없음·사전에 없는 색 이름) → 확인 필요."""
     mine = color_words(color)
     if not mine:
         return None
     samples = [color_words(s.color) for s in rec.sample_parts if s.color.strip()]
     if not samples:
         return None
-    return any(mine & s for s in samples)
+    if any(mine & s for s in samples):
+        return True
+    # 사전(color/families.py)에 없는 색 이름이 끼어 있으면 '다름'이라 단정하지 않는다 → 확인 필요(None)
+    # 예: 검체 '회색' ↔ 서류 'FOGGY GRAY' — 회색 계열일 수 있어 담당자가 본다(11/28 LSY 결정)
+    known = lambda ws: any(color_group(w) for w in ws)  # noqa: E731
+    if not known(mine) or not all(known(s) for s in samples):
+        return None
+    return False
 
 
 def _reason(
@@ -193,7 +200,7 @@ def choose_record(
             if ok is not False:
                 chosen = (r, h)
                 if ok is None:
-                    notes.append("색상 확인 필요(검체 색 또는 현품 색 기록 없음)")
+                    notes.append("색상 확인 필요(색 기록이 없거나 사전에 없는 색 이름 — 담당자가 같은 색인지 확인)")
                 break
             fails.append(r.record_no)
         if chosen:

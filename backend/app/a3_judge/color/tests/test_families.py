@@ -33,11 +33,21 @@ def test_record_with_many_korean_colors():
     assert _color_ok(r, "하늘색") is True  # 글자가 같으면 통과
     assert _color_ok(r, "SKY BLUE") is True  # 하늘색 = SKY BLUE (같은 이름을 옮긴 것)
     assert _color_ok(r, "YELLOW GREEN") is True  # 연두
-    assert _color_ok(r, "WHITE") is False
+    assert _color_ok(r, "WHITE") is False  # 검체 7색 모두 사전에 있고 WHITE 없음
 
 
 def test_similar_colors_not_merged():
     assert _color_ok(_rec("하늘색"), "BLUE") is False
     assert _color_ok(_rec("연두"), "GREEN") is False
     assert _color_ok(_rec("남색"), "BLUE") is False
-    assert _color_ok(_rec("하늘색"), "LIGHT BLUE") is False
+    assert _color_ok(_rec("하늘색"), "LIGHT BLUE") is None  # 사전에 없는 이름 → 확인 필요
+
+
+def test_unknown_color_name_needs_check():
+    """사전에 없는 이름(FOGGY GRAY)은 다름이라 단정하지 않고 None(색상 확인 필요). 글자가 같으면 같음."""
+    assert _color_ok(_rec("회색"), "FOGGY GRAY") is None
+    assert _color_ok(_rec("FOGGY GRAY"), "foggy gray") is True
+    assert (
+        _color_ok(_rec("노랑", "FOGGY GRAY"), "BLUE") is None
+    )  # 검체 중 모르는 이름이 있으면 확인
+    assert _color_ok(_rec("노랑"), "BLUE") is False  # 둘 다 사전에 있고 다르면 다름
