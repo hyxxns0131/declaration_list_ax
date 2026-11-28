@@ -13,6 +13,7 @@ from app.a3_judge.history_lookup.model_key import join_maker, norm_company, spli
 from app.a3_judge.material.codes import material_list
 from app.a3_judge.material.label_diff import TAG_LABEL, label_terms_from, label_warning
 from app.a3_judge.material.resolve import DEFAULT_ORDER, resolve_material
+from app.a3_judge.material.unmodeled import TAG_UNMODELED, find_by_name
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
 from app.a3_judge.record_pick import no_record
@@ -329,6 +330,13 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     row = row.model_copy(deep=True)
 
     past = find_past(ctx.history, row.model, row.is_part, row.row_id)
+    unmodeled_note: str | None = None
+    if not row.model:
+        # 모델 코드가 없는 행: 영문명이 같은 이력으로(약한 근거라 확인 필요, material/unmodeled.py)
+        past, unmodeled_note = find_by_name(
+            ctx.history, row.text(C_NAME_EN), row.is_part, row.row_id
+        )
+    row.set_note(TAG_UNMODELED, unmodeled_note or None)
     from_main = False
     if row.is_part and ctx.rule("spare_same_as_model", False):
         # 부분품은 본품과 같은 재질·실적으로 신고(spare_same_as_model)
@@ -358,6 +366,8 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     if from_main:
         for e in m.evidence:
             e.note += " — 부분품은 본품과 같은 재질(spare_same_as_model)"
+    if not row.model and past and m.flag == "ok":
+        m.flag, m.memo = "need_check", "모델 코드 없음: 영문명으로 찾은 이력 — 확인 필요"
     row.set_ai(C_MATERIAL, m.value, m.evidence, flag=m.flag, memo=m.memo)
 
     _spec(row, ctx)
