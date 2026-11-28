@@ -1,9 +1,10 @@
 """행 → 신고건 묶음. 키가 같은 행끼리, 최대 행 수에서 끊는다. 순수 함수. 담당: LSY [개선] A3-4"""
 
+from app.a3_judge.grouping.arrival import latest_arrival
 from app.a3_judge.grouping.keys import NO_CARGO_PREFIX, key_tuple, material_key, row_key
 from app.a3_judge.grouping.order import sort_rows
 from app.core.schema.declaration import Declaration, DeclarationKey
-from app.core.schema.history import C_ARRIVAL, C_RECORD, HistoryRow
+from app.core.schema.history import C_RECORD, HistoryRow
 from app.core.schema.shipper import ShipperSettings
 
 W_NO_CARGO = "화물관리번호 없음: 모선명으로 묶음 (확인 필요)"
@@ -20,12 +21,6 @@ def _record_nos(rows: list[HistoryRow]) -> list[str]:
         if no and no not in out:
             out.append(no)
     return out
-
-
-def _arrival(rows: list[HistoryRow]) -> str | None:
-    """묶인 B/L 중 가장 최근 반입일(RULES 11-3)."""
-    dates = [r.text(C_ARRIVAL) for r in rows if r.text(C_ARRIVAL)]
-    return max(dates) if dates else None
 
 
 def group_rows(rows: list[HistoryRow], settings: ShipperSettings) -> list[Declaration]:
@@ -56,7 +51,7 @@ def group_rows(rows: list[HistoryRow], settings: ShipperSettings) -> list[Declar
             records = _record_nos(chunk)
             if one_record and len(records) > 1:
                 warnings.append(W_MULTI_RECORD)
-            arrival = _arrival(chunk)
+            arrival = latest_arrival(chunk)
             if not arrival:
                 warnings.append(W_NO_ARRIVAL)
             out.append(
