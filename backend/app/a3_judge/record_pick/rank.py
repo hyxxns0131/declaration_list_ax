@@ -200,7 +200,9 @@ def choose_record(
             if ok is not False:
                 chosen = (r, h)
                 if ok is None:
-                    notes.append("색상 확인 필요(색 기록이 없거나 사전에 없는 색 이름 — 담당자가 같은 색인지 확인)")
+                    notes.append(
+                        "색상 확인 필요(색 기록이 없거나 사전에 없는 색 이름 — 담당자가 같은 색인지 확인)"
+                    )
                 break
             fails.append(r.record_no)
         if chosen:

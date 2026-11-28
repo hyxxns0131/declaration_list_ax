@@ -22,6 +22,7 @@ from app.a3_judge.record_pick.rank import choose_record, expiry_warning
 from app.a3_judge.rule_check.maker_rule import check_maker
 from app.a3_judge.rule_check.material_rule import check_material
 from app.a3_judge.rule_check.record_rule import check_record
+from app.a3_judge.spare_parts.model_change import TAG_MODEL_CHANGE, apply_model_change
 from app.a3_judge.spec_class.classify import judge_spec
 from app.a3_judge.spec_class.tables import RULE_KEY as RULE_KEY_SPEC
 from app.core.schema.fields import Evidence
@@ -328,6 +329,8 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     if row.locked:
         return row, {"locked": True}
     row = row.model_copy(deep=True)
+    # 담당자가 신고 모델을 바꿨으면 그 모델로 판단(spare_parts/model_change.py)
+    row.set_note(TAG_MODEL_CHANGE, apply_model_change(row))
 
     past = find_past(ctx.history, row.model, row.is_part, row.row_id)
     unmodeled_note: str | None = None
