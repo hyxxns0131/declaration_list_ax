@@ -8,14 +8,18 @@
 - 만료 판정은 A2 records 함수를 쓴다.
 """
 
+import re
 from datetime import date
 
 from pydantic import BaseModel
 from pydantic import Field as PField
 
 from app.a2_registry.records.service import expires_on, format_record_cell, is_expired, to_date
+from app.a3_judge.color.families import color_group
 from app.a3_judge.record_pick import no_record
 from app.a3_judge.record_pick.eligibility import covers_materials, covers_product, factory_match
+from app.a3_judge.record_pick.spec_filter import spec_ok as spec_fits
+from app.a3_judge.record_pick.spec_filter import split_by_spec
 from app.core.schema.record import Record
 
 
@@ -29,14 +33,31 @@ class RecordChoice(BaseModel):
     basis_date: str = ""  # 유효기간을 비교한 기준일(신고일, 없으면 오늘) — 화면에 "○월 ○일 기준"
 
 
+def color_words(text: str) -> set[str]:
+    """색 표기 → 비교용 낱말. 'WHITE(흰색)' → {'WHITE', '흰색'}, 'white / 흰색' → {'WHITE', '흰색'}.
+    시험성적서는 '영문(한글)'·한글로, 선적서류는 영문만 쓰는 경우가 있어 한쪽 낱말만 같아도 같은 색으로 본다."""
+    parts = re.split(r"[()（）/,·]", text or "")
+    words = {p.strip().upper() for p in parts if p.strip()}
+    # 한글·영문 같은 색 짝(color/families.py): '노랑' → 'YELLOW' 묶음도 넣어 비교
+    return words | {g for w in words if (g := color_group(w))}
+
+
 def _color_ok(rec: Record, color: str) -> bool | None:
-    """None = 비교 불가(검체 색 기록 없음 또는 현품 색 없음)."""
-    if not color:
+    """True = 같은 색, False = 사전으로 확실히 다른 색, None = 판단 불가(기록 없음·사전에 없는 색 이름) → 확인 필요."""
+    mine = color_words(color)
+    if not mine:
         return None
-    colors = {s.color.strip() for s in rec.sample_parts if s.color.strip()}
-    if not colors:
+    samples = [color_words(s.color) for s in rec.sample_parts if s.color.strip()]
+    if not samples:
         return None
-    return color.strip() in colors
+    if any(mine & s for s in samples):
+        return True
+    # 사전(color/families.py)에 없는 색 이름이 끼어 있으면 '다름'이라 단정하지 않는다 → 확인 필요(None)
+    # 예: 검체 '회색' ↔ 서류 'FOGGY GRAY' — 회색 계열일 수 있어 담당자가 본다(11/28 LSY 결정)
+    known = lambda ws: any(color_group(w) for w in ws)  # noqa: E731
+    if not known(mine) or not all(known(s) for s in samples):
+        return None
+    return False
 
 
 def _reason(
@@ -92,7 +113,7 @@ def choose_record(
         mats_ok = covers_materials(materials, r)
         name_ok = covers_product(name_ko, r)
         fits = bool(how) and mats_ok and name_ok
-        spec_ok = not (same_spec and spec and r.spec_class and r.spec_class != spec)
+        spec_ok = spec_fits(r.spec_class, spec, same_spec)
         checks = {
             "공장": bool(how),
             "품명": name_ok,
@@ -140,11 +161,11 @@ def choose_record(
 
     notes: list[str] = []
     if same_spec and spec:
-        kept = [(r, h) for r, h in pool if not r.spec_class or r.spec_class == spec]
-        skipped = [r.record_no for r, _ in pool if r.spec_class and r.spec_class != spec]
+        kept, skipped_pairs, no_spec = split_by_spec(pool, spec, lambda x: x[0].spec_class)
+        skipped = [r.record_no for r, _ in skipped_pairs]
         if skipped:
             notes.append(f"재질 구분이 달라 건너뛴 실적: {', '.join(skipped)}")
-        if any(not r.spec_class for r, _ in kept):
+        if no_spec:
             notes.append("실적 쪽 재질 구분 기록 없음 → 같은 구분인지 확인 필요")
         if pool and not kept:
             out.precise_needed, out.need_check = True, True
@@ -178,7 +199,9 @@ def choose_record(
             if ok is not False:
                 chosen = (r, h)
                 if ok is None:
-                    notes.append("색상 확인 필요(검체 색 또는 현품 색 기록 없음)")
+                    notes.append(
+                        "색상 확인 필요(색 기록이 없거나 사전에 없는 색 이름 — 담당자가 같은 색인지 확인)"
+                    )
                 break
             fails.append(r.record_no)
         if chosen:

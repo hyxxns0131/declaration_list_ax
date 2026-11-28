@@ -6,28 +6,19 @@
 - 재질: 실적 재질이 제품 재질을 모두 포함해야 한다(실적 재질이 더 많은 것은 문제없음).
 """
 
-from app.a3_judge.factory.address import same_address
-from app.a3_judge.history_lookup.model_key import main_product, product_base
+from app.a3_judge.factory.same_factory import same_factory
+from app.a3_judge.record_pick.spare_rule import same_product
 from app.core.schema.record import Record
 
 
 def factory_match(rec: Record, code: str, address: str) -> str | None:
-    """'코드' · '주소' · None"""
-    if code and rec.factory_code and code.upper() == rec.factory_code.upper():
-        return "코드"
-    if address and rec.factory_address and same_address(address, rec.factory_address):
-        return "주소"
-    return None
+    """'코드' · '주소' · None (factory/same_factory.py)"""
+    return same_factory(code, address, rec.factory_code, rec.factory_address)
 
 
 def covers_product(name_ko: str, rec: Record, spare_to_main: bool = True) -> bool:
-    if not rec.product_names:
-        return True
-    base = product_base(name_ko)
-    names = {product_base(n) for n in rec.product_names}
-    if base in names:
-        return True
-    return spare_to_main and main_product(name_ko) != base and main_product(name_ko) in names
+    """실적 품명이 이 제품을 덮는지(부속품 → 본품 실적 한 방향, record_pick/spare_rule.py)."""
+    return same_product(name_ko, rec.product_names, spare_to_main)
 
 
 def covers_materials(materials: list[str], rec: Record) -> bool:

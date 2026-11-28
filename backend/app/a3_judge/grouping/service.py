@@ -2,9 +2,12 @@
 
 - declarations_for: 행 → 신고건(순수 계산)
 - recompute: 화주의 전체 행으로 신고건을 다시 계산해 저장하고, 각 행의 declaration_id·상태를 맞춘다.
-  반입일이 들어온 묶음만 '신청 전'(RULES 11-3). 승인 행은 바꾸지 않는다.
+  반입일이 들어온 묶음만 '신청 전'(RULES 11-3, arrival.py). 승인 행은 바꾸지 않는다.
+  신고건 번호는 이전 계산과 맞춰 이어받는다(regroup.py) → 고친 행만 옮겨 가고 다른 신고건 번호는 그대로.
 """
 
+from app.a3_judge.grouping.arrival import arrival_status
+from app.a3_judge.grouping.regroup import keep_ids
 from app.a3_judge.grouping.split import group_rows
 from app.a4_settings.engine.service import get_rules
 from app.core.schema.declaration import Declaration
@@ -22,7 +25,11 @@ def declarations_for(
 def recompute(shipper_id: str) -> list[Declaration]:
     rows = work_db.list_rows(shipper_id)
     active = [r for r in rows if r.status != "승인"]
-    decls = declarations_for(shipper_id, active)
+    decls = keep_ids(
+        work_db_more.list_declarations(shipper_id),
+        declarations_for(shipper_id, active),
+        shipper_id,
+    )
     by_row = {rid: d for d in decls for rid in d.row_ids}
     changed: list[HistoryRow] = []
     for r in active:
@@ -31,8 +38,7 @@ def recompute(shipper_id: str) -> list[Declaration]:
         before = (r.declaration_id, r.status)
         r.declaration_id = new_id
         r.refresh_status()
-        if r.status == "신청 전" and not (d and d.arrival_date):
-            r.status = "반입 전"  # 반입일이 들어온 묶음만 '신청 전'(RULES 11-3)
+        r.status = arrival_status(r.status, d.arrival_date if d else None)
         if (r.declaration_id, r.status) != before:
             changed.append(r)
     work_db.save_rows(changed)

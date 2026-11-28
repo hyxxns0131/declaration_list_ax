@@ -11,6 +11,7 @@ RULES 11-6 부분품:
 from pydantic import BaseModel
 from pydantic import Field as PField
 
+from app.a3_judge.spare_parts.collect import collect_parts, format_part_line
 from app.core.schema.document import DocumentLine
 
 
@@ -68,7 +69,7 @@ def merge_spare_lines(lines: list[DocumentLine]) -> tuple[list[DocumentLine], Me
         amount=_sum([p.amount for p in parts]),
         is_part=True,
     )
-    part_lines = [f"{p.model} {p.description} ({p.cartons or 0:g} CTNS)".strip() for p in parts]
+    part_lines = [format_part_line(p) for p in collect_parts(parts)]
     return mains, MergedParts(
         line=merged, name_model=model, part_lines=part_lines, need_check=need_check, note=note
     )

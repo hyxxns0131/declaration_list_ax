@@ -14,7 +14,7 @@ import { EmptyState, ErrorLine, Notice, Skeleton } from "@/components/ui/StateBo
 import { colors, font, space } from "@/components/ui/tokens";
 import { shippers as getShippers } from "@/lib/api/core";
 import { getHistory } from "@/lib/api/history";
-import { computeDeclarations, getDeclarations } from "@/lib/api/judge";
+import { computeDeclarations, getDeclarations, rejudgeShipper } from "@/lib/api/judge";
 import { fmtDate, shown } from "@/lib/format";
 import { T } from "@/lib/text/common";
 import { JUDGE } from "@/lib/text/judge";
@@ -99,6 +99,20 @@ export default function JudgePage() {
     }
   };
 
+  const rejudge = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const r = await rejudgeShipper(shipperId);
+      setMessage(P.rejudged(r.rejudged));
+      await load();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const allRowIds = useMemo(() => (decls ?? []).flatMap((d) => d.row_ids), [decls]);
   // 화면(표) 순서를 지켜서 넘긴다 — 첫 행이 대표품목
   const pickedIds = useMemo(() => allRowIds.filter((id) => picked.has(id)), [allRowIds, picked]);
@@ -144,6 +158,9 @@ export default function JudgePage() {
         actions={
           <>
             <ShipperSelect shippers={shippers} value={shipperId} onChange={setShipperId} />
+            <Button variant="ghost" onClick={rejudge} disabled={!shipperId || busy} title={P.rejudgeTitle}>
+              {P.rejudge}
+            </Button>
             <Button onClick={recompute} disabled={!shipperId || busy}>
               ⟳ {busy ? P.recomputing : P.recompute}
             </Button>

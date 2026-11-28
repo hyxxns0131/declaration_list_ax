@@ -1,6 +1,7 @@
 """영역 라우터 (판단·신고건·품목사항). 담당: LSY
 
 GET  /judge/{row_id}                  재질·실적·제조사 판단 근거와 후보 (DESIGN 5장 JudgeEvidence)
+POST /judge/rejudge?shipper_id=       기업 설정 바꾼 뒤 재질·제조사·실적 다시 판단(확정 값 유지) — 11/28
 POST /judge/declarations?shipper_id=  신고건 나누기 계산(저장하고 돌려준다)
 GET  /judge/declarations?shipper_id=  저장된 신고건
 POST /judge/item-sheet/preview        고른 행 → 한 신고건인지 + 품목사항 미리보기
@@ -10,6 +11,7 @@ GET  /judge/item-sheet-groups?shipper_id=&group_by=   같은 품목끼리 묶음
 GET  /judge/item-sheet/review?shipper_id=&declaration_ids=  검토용 전체 엑셀 1개(신고건 사이 빈 행, 막힌 건 포함) — 시연 피드백 11/27
 POST /judge/item-sheet/bulk           전체 / 고른 신고건 / 고른 묶음 → ZIP(신고건마다 xlsx + 검토용 전체 + 제외됨.txt) file_id
 GET  /judge/item-sheet/bulk/{file_id} ZIP 다운로드
+POST /judge/item-sheet/google?shipper_id=&declaration_id=  신고건 1건 → 공유 폴더에 구글 시트 새로 만들기 — 11/28
 GET  /judge/{row_id}/model-docs       모델 자료(현품사진·라벨 엑셀·수입신고서.json) 목록 — 드라이브 읽기만 (11/27)
 GET  /judge/model-docs/file/{file_id} 모델 자료 파일 내려받기
 """
@@ -45,6 +47,23 @@ class BulkIn(BaseModel):
     declaration_ids: list[str] | None = None
     group_by: str | None = None  # material | factory | product | record
     groups: list[str] | None = None
+
+
+@router.post("/item-sheet/google")
+def item_sheet_google(shipper_id: str, declaration_id: str) -> dict:
+    """신고건 1건을 공유 폴더(ITEM_SHEET_FOLDER_ID)에 구글 시트로 새로 만든다. 로그인·폴더가 없으면 이유만."""
+    from app.a3_judge.item_sheet.google_sheet import create_item_sheet
+
+    return create_item_sheet(shipper_id, declaration_id)
+
+
+@router.post("/rejudge")
+def rejudge(shipper_id: str) -> dict:
+    """기업 설정(재질 근거 순서 등)을 바꾼 뒤 재질·제조사·실적 다시 판단 + 신고건 다시 묶기. 확정 값·승인 행 유지.
+    설정 저장(기능 4)이 판단을 다시 부르지 않아서 탭 4에서 누른다(11/28)."""
+    from app.a1_history.rows.service import rejudge as rows_rejudge
+
+    return {"rejudged": rows_rejudge(shipper_id)}
 
 
 @router.post("/declarations")

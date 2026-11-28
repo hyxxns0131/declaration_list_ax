@@ -99,3 +99,46 @@ def test_color_mismatch_marked_excluded():
     assert out.record_no == "R-WHITE"
     assert by["R-BLUE"]["status"] == "제외" and "색상 다름" in by["R-BLUE"]["reason"]
     assert by["R-BLUE"]["checks"]["색상"] is False and by["R-WHITE"]["checks"]["색상"] is True
+
+
+def test_color_words_english_korean():
+    """시험성적서 'WHITE(흰색)' ↔ 선적서류 'WHITE' 또는 '흰색'은 같은 색. 가상 값."""
+    from app.a3_judge.record_pick.rank import _color_ok, color_words
+    from app.core.schema.record import Record, SamplePart
+
+    assert color_words("WHITE(흰색)") == {"WHITE", "흰색"}
+    r = Record(
+        record_no="R-1",
+        sample_parts=[SamplePart(material="도자기제", part="접시", color="WHITE(흰색)")],
+    )
+    assert _color_ok(r, "WHITE") is True
+    assert _color_ok(r, "white") is True
+    assert _color_ok(r, "흰색") is True
+    assert _color_ok(r, "BLUE") is False
+
+
+def test_spec_compare_ignores_order_and_units():
+    """실적 재질 구분 '깊이 3cm, 용량 1.2L' = 행 '용량 1200ml, 깊이 30mm' → 같은 구분. 가상 값."""
+    from datetime import date
+
+    from app.a3_judge.record_pick.rank import choose_record
+    from app.core.schema.record import Record
+
+    r = Record(
+        record_no="R-1",
+        factory_code="CN900000201",
+        materials=["도자기제"],
+        approved_on="2025-05-24",
+        spec_class="깊이 3cm, 용량 1.2L",
+        products=["BWL-W15"],
+    )
+    out = choose_record(
+        [r],
+        ["도자기제"],
+        "CN900000201",
+        "",
+        "도자기 그릇(BWL-W15)",
+        date(2026, 11, 27),
+        spec="용량 1200ml, 깊이 30mm",
+    )
+    assert out.record_no == "R-1" and out.candidates[0]["checks"]["재질 구분"] is True

@@ -23,6 +23,8 @@ TREE = {
         {"id": "f1", "name": "DEMO-M01 현품사진.xlsx", "mimeType": "application/vnd.ms-excel"},
         {"id": "f2", "name": "수입신고서.json", "mimeType": "application/json"},
         {"id": "f3", "name": "정밀실적 202600000101", "mimeType": DIR},
+        {"id": "f4", "name": "시험성적서.json", "mimeType": "application/json"},
+        {"id": "f5", "name": "DEMO-M01 라벨.pdf", "mimeType": "application/pdf"},
     ],
 }
 
@@ -52,6 +54,8 @@ def test_finds_model_folder_and_kinds(fake):
         "DEMO-M01 현품사진.xlsx": "excel",
         "수입신고서.json": "import_decl",
         "정밀실적 202600000101": "precise",
+        "시험성적서.json": "test_report",
+        "DEMO-M01 라벨.pdf": "image",
     }
 
 

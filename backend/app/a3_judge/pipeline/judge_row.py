@@ -11,7 +11,9 @@ from app.a3_judge.factory.choose import choose_factory
 from app.a3_judge.history_lookup.lookup import find_past
 from app.a3_judge.history_lookup.model_key import join_maker, norm_company, split_maker
 from app.a3_judge.material.codes import material_list
+from app.a3_judge.material.label_diff import TAG_LABEL, label_terms_from, label_warning
 from app.a3_judge.material.resolve import DEFAULT_ORDER, resolve_material
+from app.a3_judge.material.unmodeled import TAG_UNMODELED, find_by_name
 from app.a3_judge.pipeline.context import JudgeContext
 from app.a3_judge.pipeline.evidence import ev
 from app.a3_judge.record_pick import no_record
@@ -20,7 +22,9 @@ from app.a3_judge.record_pick.rank import choose_record, expiry_warning
 from app.a3_judge.rule_check.maker_rule import check_maker
 from app.a3_judge.rule_check.material_rule import check_material
 from app.a3_judge.rule_check.record_rule import check_record
-from app.a3_judge.spec_class.classify import auto_spec
+from app.a3_judge.spare_parts.model_change import TAG_MODEL_CHANGE, apply_model_change
+from app.a3_judge.spec_class.classify import judge_spec
+from app.a3_judge.spec_class.tables import RULE_KEY as RULE_KEY_SPEC
 from app.core.schema.fields import Evidence
 from app.core.schema.history import (
     C_BL,
@@ -187,20 +191,39 @@ def _maker(
     return detail
 
 
-def _spec(row: HistoryRow) -> None:
+def _spec(row: HistoryRow, ctx: JudgeContext | None = None) -> None:
+    """재질 구분(RULES 11-5). 칸이 비면 자동 값 또는 '칸 입력 필요', 담당자가 적었으면 바꾸지 않고 모자란 입력만 비고에."""
     mats = material_list(row.text(C_MATERIAL))
-    value, memo = auto_spec(mats)
     cell = row.cells.get(C_SPEC)
-    if value:
-        row.set_ai(C_SPEC, value, [ev("RULE", "spec_class", memo)])
+    table = ctx.rule(RULE_KEY_SPEC) if ctx else None
+    j = judge_spec(mats, row.text(C_SPEC), table if isinstance(table, dict) else None)
+    if not j.families:
         row.set_note(TAG_SPEC, None)
-    elif memo and not (cell and cell.value):
+        return
+    if j.ai_value:
+        row.set_ai(C_SPEC, j.ai_value, [ev("RULE", "spec_class", j.evidence)])
+        row.set_note(TAG_SPEC, None)
+        return
+    if not (cell and cell.value):
         row.set_ai(
-            C_SPEC, None, [ev("RULE", "spec_class", memo)], flag="need_check", memo="칸 입력 필요"
+            C_SPEC,
+            None,
+            [ev("RULE", "spec_class", j.evidence)],
+            flag="need_check",
+            memo="칸 입력 필요",
         )
-        row.set_note(TAG_SPEC, memo)
-    else:
-        row.set_note(TAG_SPEC, None)
+    row.set_note(TAG_SPEC, j.note or None)
+
+
+def _label_check(row: HistoryRow, ctx: JudgeContext) -> None:
+    """라벨 재질이 지금 재질 칸과 다르면 비고 한 줄(값은 안 바꿈, material/label_diff.py)."""
+    msg = label_warning(
+        material_list(row.text(C_MATERIAL)),
+        label_terms_from(ctx.docs_for(row)),
+        ctx.aliases,
+        ctx.known_materials,
+    )
+    row.set_note(TAG_LABEL, msg)
 
 
 def _record_from_history(row: HistoryRow, past: HistoryRow | None, ctx: JudgeContext) -> None:
@@ -306,8 +329,17 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     if row.locked:
         return row, {"locked": True}
     row = row.model_copy(deep=True)
+    # 담당자가 신고 모델을 바꿨으면 그 모델로 판단(spare_parts/model_change.py)
+    row.set_note(TAG_MODEL_CHANGE, apply_model_change(row))
 
     past = find_past(ctx.history, row.model, row.is_part, row.row_id)
+    unmodeled_note: str | None = None
+    if not row.model:
+        # 모델 코드가 없는 행: 영문명이 같은 이력으로(약한 근거라 확인 필요, material/unmodeled.py)
+        past, unmodeled_note = find_by_name(
+            ctx.history, row.text(C_NAME_EN), row.is_part, row.row_id
+        )
+    row.set_note(TAG_UNMODELED, unmodeled_note or None)
     from_main = False
     if row.is_part and ctx.rule("spare_same_as_model", False):
         # 부분품은 본품과 같은 재질·실적으로 신고(spare_same_as_model)
@@ -337,12 +369,15 @@ def judge_row_detail(row: HistoryRow, ctx: JudgeContext) -> tuple[HistoryRow, di
     if from_main:
         for e in m.evidence:
             e.note += " — 부분품은 본품과 같은 재질(spare_same_as_model)"
+    if not row.model and past and m.flag == "ok":
+        m.flag, m.memo = "need_check", "모델 코드 없음: 영문명으로 찾은 이력 — 확인 필요"
     row.set_ai(C_MATERIAL, m.value, m.evidence, flag=m.flag, memo=m.memo)
 
-    _spec(row)
+    _spec(row, ctx)
     maker_detail = _maker(row, past, ctx, product)
     record_detail = _record(row, past, ctx, maker_detail.get("address", ""))
     _rule_check(row, ctx, maker_detail.get("address", ""))
+    _label_check(row, ctx)
     row.refresh_status()
     detail = {
         "material": {

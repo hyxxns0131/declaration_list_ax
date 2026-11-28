@@ -25,7 +25,9 @@ def _kind(f: dict) -> str:
         return "precise" if name.startswith(PRECISE_PREFIX) else "folder"
     low = name.lower()
     if low.endswith(".json"):
-        return "import_decl" if "수입신고서" in name else "json"
+        if "수입신고서" in name:
+            return "import_decl"
+        return "test_report" if "시험성적서" in name else "json"
     if low.endswith((".xlsx", ".xls", ".xlsm")) or "spreadsheet" in str(f.get("mimeType", "")):
         return "excel"
     if low.endswith((".png", ".jpg", ".jpeg", ".pdf")):

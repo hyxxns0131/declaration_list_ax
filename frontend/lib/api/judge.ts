@@ -16,6 +16,25 @@ export const getJudge = (rowId: string) => api<JudgeDetail>(`/judge/${encodeURIC
 export const computeDeclarations = (shipperId: string) =>
   api<Declaration[]>(`/judge/declarations${qs({ shipper_id: shipperId })}`, { method: "POST" });
 
+/** 기업 설정을 바꾼 뒤 재질·제조사·실적 다시 판단(확정 값 유지) */
+export const rejudgeShipper = (shipperId: string) =>
+  api<{ rejudged: number }>(`/judge/rejudge?shipper_id=${encodeURIComponent(shipperId)}`, { method: "POST" });
+
+export interface GoogleSheetOut {
+  ok: boolean;
+  reason?: string;
+  title?: string;
+  url?: string;
+  rows?: number;
+}
+
+/** 신고건 1건 → 공유 폴더에 구글 시트 새로 만들기(ITEM_SHEET_FOLDER_ID). 로그인·폴더 없으면 ok=false + reason */
+export const createItemGoogleSheet = (shipperId: string, declarationId: string) =>
+  api<GoogleSheetOut>(
+    `/judge/item-sheet/google?shipper_id=${encodeURIComponent(shipperId)}&declaration_id=${encodeURIComponent(declarationId)}`,
+    { method: "POST" },
+  );
+
 export const getDeclarations = (shipperId: string) =>
   api<Declaration[]>(`/judge/declarations${qs({ shipper_id: shipperId })}`);
 
