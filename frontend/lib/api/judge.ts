@@ -16,6 +16,10 @@ export const getJudge = (rowId: string) => api<JudgeDetail>(`/judge/${encodeURIC
 export const computeDeclarations = (shipperId: string) =>
   api<Declaration[]>(`/judge/declarations${qs({ shipper_id: shipperId })}`, { method: "POST" });
 
+/** 기업 설정을 바꾼 뒤 재질·제조사·실적 다시 판단(확정 값 유지) */
+export const rejudgeShipper = (shipperId: string) =>
+  api<{ rejudged: number }>(`/judge/rejudge?shipper_id=${encodeURIComponent(shipperId)}`, { method: "POST" });
+
 export const getDeclarations = (shipperId: string) =>
   api<Declaration[]>(`/judge/declarations${qs({ shipper_id: shipperId })}`);
 
