@@ -18,7 +18,8 @@ import type { Integrations } from "@/lib/types/core";
 import type { Badges, Declaration } from "@/lib/types/history";
 import type { AlertsOut, FactoryCode, PreciseRecord } from "@/lib/types/registry";
 
-const td = { padding: space.xs, borderBottom: `1px solid ${colors.border}`, fontSize: font.md } as const;
+const td = { padding: `${space.sm}px ${space.xs}px`, borderBottom: `1px solid ${colors.line}`, fontSize: font.md } as const;
+const groupTitle = { margin: `0 0 ${space.sm}px`, fontSize: font.md, fontWeight: 700, color: colors.heading } as const;
 
 export default function HomePage() {
   const { shipperId, shipperName, chosen, loaded, error: shipperError } = useShipper();
@@ -63,16 +64,30 @@ export default function HomePage() {
             alignItems: "center",
             gap: space.md,
             flexWrap: "wrap",
-            background: colors.brand,
+            // 파랑 띠 위 반투명 흰 줄 (HS 요청 11/28)
+            background: "rgba(255, 255, 255, 0.14)",
+            border: "1px solid rgba(255, 255, 255, 0.24)",
             color: "#fff",
-            borderRadius: 16,
-            padding: `${space.md}px ${space.lg}px`,
+            borderRadius: 8,
+            padding: `${space.sm + 4}px ${space.lg}px`,
             marginBottom: space.lg,
           }}
         >
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", opacity: 0.85 }}>{DASH.shipperNow}</span>
           <strong style={{ fontSize: font.xl }}>{shipperName}</strong>
-          <Link href="/settings/" style={{ marginLeft: "auto", color: "#fff", fontWeight: 600 }}>
+          <Link
+            href="/settings/"
+            style={{
+              marginLeft: "auto",
+              color: colors.homeAccent,
+              background: "#fff",
+              borderRadius: 999,
+              padding: `${space.xs + 2}px ${space.md}px`,
+              fontWeight: 700,
+              fontSize: font.sm,
+              textDecoration: "none",
+            }}
+          >
             {DASH.shipperChange}
           </Link>
         </div>
@@ -86,7 +101,7 @@ export default function HomePage() {
                 href="/settings/"
                 style={{
                   display: "inline-block",
-                  background: colors.brand,
+                  background: colors.homeAccent,
                   color: "#fff",
                   padding: `${space.sm}px ${space.lg}px`,
                   borderRadius: 999,
@@ -103,21 +118,22 @@ export default function HomePage() {
 
       {chosen && (
         <>
-          <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.registry}</h3>
+          {/* 첫 묶음 머리글은 파랑 띠 위(흰 글자), 숫자 카드가 띠 아래쪽에 겹쳐 뜬다 */}
+          <h3 style={{ ...groupTitle, color: "rgba(255, 255, 255, 0.92)" }}>{DASH.sections.registry}</h3>
           <StatGrid>
             <StatCard label={DASH.stats.records} value={records?.length ?? null} hint={DASH.hints.records} tone="info" href="/registry/" />
             <StatCard label={DASH.stats.recordsSoon} value={recordSoon} hint={DASH.hints.soon} tone={recordSoon ? "warn" : "ok"} href="/registry/alerts/" />
             <StatCard label={DASH.stats.factorySoon} value={factorySoon} hint={DASH.hints.soon} tone={factorySoon ? "warn" : "ok"} href="/registry/factories/" />
           </StatGrid>
 
-          <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.list}</h3>
+          <h3 style={groupTitle}>{DASH.sections.list}</h3>
           <StatGrid>
             <StatCard label={DASH.stats.rows} value={badges?.total ?? null} tone="info" href="/history/" />
             <StatCard label={DASH.stats.needCheck} value={badges?.need_check ?? null} hint={DASH.hints.needCheck} tone={badges?.need_check ? "check" : "ok"} href="/history/review/" />
             <StatCard label={DASH.stats.ready} value={badges?.ready ?? null} hint={DASH.hints.ready} tone="ok" href="/history/" />
           </StatGrid>
 
-          <h3 style={{ margin: `0 0 ${space.sm}px`, fontSize: font.md, color: colors.muted }}>{DASH.sections.judge}</h3>
+          <h3 style={groupTitle}>{DASH.sections.judge}</h3>
           <StatGrid>
             <StatCard label={DASH.stats.groups} value={decls?.length ?? null} hint={DASH.hints.groups} tone="info" href="/judge/" />
             <StatCard label={DASH.stats.groupWarn} value={groupWarn} hint={DASH.hints.groupWarn} tone={groupWarn ? "danger" : "ok"} href="/judge/" />
@@ -132,7 +148,7 @@ export default function HomePage() {
                     {alerts.items.slice(0, 6).map((a) => (
                       <tr key={`${a.kind}-${a.record_no}`}>
                         <td style={td}>
-                          <Badge tone={a.kind === "record" ? "info" : "needCheck"}>{DASH.kind[a.kind]}</Badge>
+                          <Badge tone={a.kind === "record" ? "info" : "edited"}>{DASH.kind[a.kind]}</Badge>
                         </td>
                         <td style={td}>{a.record_no}</td>
                         <td style={{ ...td, color: colors.muted }}>{a.factory}</td>
@@ -151,7 +167,7 @@ export default function HomePage() {
                   (["llm", "unipass", "drive", "gmail", "supabase", "mfds"] as const).map((k) => (
                     <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: `${space.xs}px 0`, fontSize: font.md }}>
                       <span>{DASH.integrations[k]}</span>
-                      <Badge tone={info[k].ok ? "ok" : "neutral"} title={info[k].reason}>
+                      <Badge tone={info[k].ok ? "info" : "neutral"} title={info[k].reason}>
                         {info[k].ok ? `● ${DASH.integrations.on}` : `○ ${DASH.integrations.off}`}
                         {k === "unipass" && ` (${info.unipass.mode})`}
                       </Badge>

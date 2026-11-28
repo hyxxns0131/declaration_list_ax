@@ -71,14 +71,14 @@ export function ShipperPicker({
   const tile = (on: boolean) =>
     ({
       textAlign: "left",
-      border: on ? `2px solid ${colors.brand}` : "2px solid transparent",
+      border: on ? `2px solid ${colors.primary}` : `2px solid ${colors.cardBorder}`,
       borderRadius: cardRadius,
       padding: `${space.md + 2}px ${space.md + 4}px`,
       minHeight: 120,
       cursor: "pointer",
-      background: on ? colors.brand : colors.cardBg,
-      color: on ? "#fff" : colors.text,
-      boxShadow: on ? "0 8px 20px rgba(37, 99, 201, 0.35)" : colors.cardShadow,
+      background: on ? colors.primarySoft : colors.surface,
+      color: colors.text,
+      boxShadow: colors.cardShadow,
       display: "flex",
       flexDirection: "column",
       gap: space.xs,
@@ -95,7 +95,7 @@ export function ShipperPicker({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: space.md }}>
         {shippers.map((s) => {
           const on = chosen && s.shipper_id === current;
-          const muted = on ? "rgba(255, 255, 255, 0.85)" : colors.muted;
+          const muted = colors.muted;
           const locked = DEFAULT_SHIPPERS.includes(s.shipper_id.toUpperCase());
           return (
             <div key={s.shipper_id} style={{ position: "relative" }}>
@@ -125,8 +125,8 @@ export function ShipperPicker({
                     padding: `2px ${space.sm}px`,
                     fontSize: font.sm,
                     cursor: "pointer",
-                    background: on ? "rgba(255, 255, 255, 0.2)" : colors.bg,
-                    color: on ? "#fff" : colors.mismatch,
+                    background: colors.bg,
+                    color: colors.mismatch,
                   }}
                 >
                   {P.remove}
@@ -141,7 +141,7 @@ export function ShipperPicker({
           style={{
             ...tile(false),
             background: colors.bg,
-            border: `2px dashed ${colors.brand}`,
+            border: `2px dashed ${colors.primary}`,
             color: colors.brand,
             alignItems: "center",
             justifyContent: "center",
